@@ -15,8 +15,8 @@ export const CONFIG = {
     LOGIN: '/v1/auth/token',
     REGISTER: '/v1/auth/user/create',
     LOGOUT: '/v1/auth/logout',
-    LOGOUT_ALL: '/v1/auth/logout/all',
-    ME: '/v1/auth/user/me',
+    LOGOUT_ALL: '/v1/auth/logout/all', 
+    ME: '/v1/auth/me',
     
     // Future endpoints (when you add them)
     REFRESH: '/v1/auth/refresh',

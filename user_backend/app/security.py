@@ -2,11 +2,10 @@ import base64
 from datetime import UTC, datetime, timedelta, timezone
 from random import SystemRandom
 from typing import Annotated
-from uuid import UUID, uuid4
+from uuid import UUID
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 

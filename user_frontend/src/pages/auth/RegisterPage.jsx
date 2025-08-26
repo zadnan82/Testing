@@ -1,3 +1,5 @@
+// user_frontend/src/pages/auth/RegisterPage.jsx
+
 import React, { useState } from 'react';
 import { Code, User, Mail, Lock, UserPlus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -5,8 +7,8 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Card from '../../components/ui/Card';
 
-const RegisterPage = ({ onSwitchToLogin }) => {
-  const { register, loading, error, clearError } = useAuth();
+const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
+  const { register, isLoading, error, clearError } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -92,7 +94,7 @@ const RegisterPage = ({ onSwitchToLogin }) => {
         confirmPassword: ''
       });
     } catch (err) {
-      // Error is handled by context and displayed in UI
+      // Error is handled by context and displayed via toast
       console.error('Registration failed:', err);
     }
   };
@@ -109,6 +111,14 @@ const RegisterPage = ({ onSwitchToLogin }) => {
     setRegistrationSuccess(false);
   };
 
+  const handleGoToLogin = () => {
+    if (onRegisterSuccess) {
+      onRegisterSuccess();
+    } else {
+      onSwitchToLogin();
+    }
+  };
+
   if (registrationSuccess) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -122,7 +132,7 @@ const RegisterPage = ({ onSwitchToLogin }) => {
               Your account has been created successfully. You can now sign in with your credentials.
             </p>
             <Button
-              onClick={onSwitchToLogin}
+              onClick={handleGoToLogin}
               className="w-full"
             >
               Go to Sign In
@@ -160,7 +170,7 @@ const RegisterPage = ({ onSwitchToLogin }) => {
               onChange={handleChange}
               error={formErrors.firstName}
               required
-              disabled={loading}
+              disabled={isLoading}
               placeholder="First name"
               autoComplete="given-name"
             />
@@ -173,7 +183,7 @@ const RegisterPage = ({ onSwitchToLogin }) => {
               onChange={handleChange}
               error={formErrors.lastName}
               required
-              disabled={loading}
+              disabled={isLoading}
               placeholder="Last name"
               autoComplete="family-name"
             />
@@ -188,7 +198,7 @@ const RegisterPage = ({ onSwitchToLogin }) => {
             onChange={handleChange}
             error={formErrors.email}
             required
-            disabled={loading}
+            disabled={isLoading}
             placeholder="Enter your email address"
             autoComplete="email"
           />
@@ -202,7 +212,7 @@ const RegisterPage = ({ onSwitchToLogin }) => {
             onChange={handleChange}
             error={formErrors.password}
             required
-            disabled={loading}
+            disabled={isLoading}
             placeholder="Enter your password"
             autoComplete="new-password"
           />
@@ -216,7 +226,7 @@ const RegisterPage = ({ onSwitchToLogin }) => {
             onChange={handleChange}
             error={formErrors.confirmPassword}
             required
-            disabled={loading}
+            disabled={isLoading}
             placeholder="Confirm your password"
             autoComplete="new-password"
           />
@@ -224,8 +234,8 @@ const RegisterPage = ({ onSwitchToLogin }) => {
           <Button
             type="submit"
             className="w-full"
-            loading={loading}
-            disabled={loading}
+            loading={isLoading}
+            disabled={isLoading}
           >
             Create Account
           </Button>
@@ -238,7 +248,7 @@ const RegisterPage = ({ onSwitchToLogin }) => {
               type="button"
               onClick={onSwitchToLogin}
               className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-              disabled={loading}
+              disabled={isLoading}
             >
               Sign in
             </button>

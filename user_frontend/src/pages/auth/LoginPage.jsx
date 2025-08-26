@@ -1,3 +1,5 @@
+// user_frontend/src/pages/auth/LoginPage.jsx
+
 import React, { useState } from 'react';
 import { Code, Mail, Lock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -5,8 +7,8 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Card from '../../components/ui/Card';
 
-const LoginPage = ({ onSwitchToRegister, onSwitchToForgot }) => {
-  const { login, loading, error, clearError } = useAuth();
+const LoginPage = ({ onSwitchToRegister, onSwitchToForgot, onLoginSuccess }) => {
+  const { login, isLoading, error, clearError } = useAuth();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [formErrors, setFormErrors] = useState({});
 
@@ -34,9 +36,12 @@ const LoginPage = ({ onSwitchToRegister, onSwitchToForgot }) => {
 
     try {
       await login(formData.email.trim(), formData.password);
-      // Navigation will be handled by the parent component based on auth state
+      // Call the router callback on successful login
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      }
     } catch (err) {
-      // Error is handled by context and displayed in UI
+      // Error is handled by context and displayed via toast
       console.error('Login failed:', err);
     }
   };
@@ -79,7 +84,7 @@ const LoginPage = ({ onSwitchToRegister, onSwitchToForgot }) => {
             onChange={handleChange}
             error={formErrors.email}
             required
-            disabled={loading}
+            disabled={isLoading}
             placeholder="Enter your email address"
             autoComplete="email"
           />
@@ -93,7 +98,7 @@ const LoginPage = ({ onSwitchToRegister, onSwitchToForgot }) => {
             onChange={handleChange}
             error={formErrors.password}
             required
-            disabled={loading}
+            disabled={isLoading}
             placeholder="Enter your password"
             autoComplete="current-password"
           />
@@ -101,8 +106,8 @@ const LoginPage = ({ onSwitchToRegister, onSwitchToForgot }) => {
           <Button
             type="submit"
             className="w-full"
-            loading={loading}
-            disabled={loading}
+            loading={isLoading}
+            disabled={isLoading}
           >
             Sign In
           </Button>
@@ -113,7 +118,7 @@ const LoginPage = ({ onSwitchToRegister, onSwitchToForgot }) => {
             type="button"
             onClick={onSwitchToForgot}
             className="text-sm text-blue-600 hover:text-blue-700 transition-colors"
-            disabled={loading}
+            disabled={isLoading}
           >
             Forgot your password?
           </button>
@@ -123,7 +128,7 @@ const LoginPage = ({ onSwitchToRegister, onSwitchToForgot }) => {
               type="button"
               onClick={onSwitchToRegister}
               className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-              disabled={loading}
+              disabled={isLoading}
             >
               Sign up
             </button>

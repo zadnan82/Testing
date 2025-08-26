@@ -6,44 +6,45 @@ import { storage } from '../utils/storage';
 export class AuthService {
   // Register new user
   async register(userData) {
-    const response = await apiClient.post(getEndpoint('REGISTER'), {
-      first_name: userData.firstName,
-      last_name: userData.lastName,
-      email: userData.email,
-      password: userData.password,
-      user_type_id: userData.userTypeId || 1
-    });
-    return response;
-  }
+  const response = await apiClient.post(getEndpoint('REGISTER'), {
+    first_name: userData.firstName,
+    last_name: userData.lastName,
+    email: userData.email,
+    password: userData.password,
+    user_type_id: userData.userTypeId || 1
+  });
+  return response.data; // Return the data
+}
 
   // Login user (FastAPI uses OAuth2PasswordRequestForm)
-  async login(email, password) {
-    // Create FormData for OAuth2PasswordRequestForm
-    const formData = new FormData();
-    formData.append('username', email); // FastAPI OAuth2 expects 'username' field
-    formData.append('password', password);
-    
-    const response = await apiClient.postForm(getEndpoint('LOGIN'), formData);
-    
-    // Store session token
-    if (response.access_token) {
-      storage.set(CONFIG.STORAGE_KEYS.SESSION_TOKEN, response.access_token);
-    }
-    
-    return response;
+ async login(email, password) {
+  // Create FormData for OAuth2PasswordRequestForm
+  const formData = new FormData();
+  formData.append('username', email);
+  formData.append('password', password);
+  
+  // Use postForm instead of axios-specific postForm
+  const response = await apiClient.postForm(getEndpoint('LOGIN'), formData);
+  
+  // Store session token - access data directly (not response.data)
+  if (response.access_token) {
+    storage.set(CONFIG.STORAGE_KEYS.SESSION_TOKEN, response.access_token);
   }
+  
+  return response; // Return the response directly (not response.data)
+}
 
   // Get current user profile
   async getCurrentUser() {
-    const response = await apiClient.get(getEndpoint('ME'));
-    
-    // Store user data
-    if (response) {
-      storage.set(CONFIG.STORAGE_KEYS.USER_DATA, response);
-    }
-    
-    return response;
+  const response = await apiClient.get(getEndpoint('ME'));
+  
+  // Store user data - access response directly (not response.data)
+  if (response) {
+    storage.set(CONFIG.STORAGE_KEYS.USER_DATA, response);
   }
+  
+  return response; // Return the response directly
+}
 
   // Update user profile (when you implement this endpoint)
   async updateProfile(userData) {
@@ -53,14 +54,21 @@ export class AuthService {
     if (userData.email) payload.email = userData.email;
     
     const response = await apiClient.patch(getEndpoint('UPDATE_PROFILE'), payload);
-    
-    // Update stored user data
-    if (response) {
-      storage.set(CONFIG.STORAGE_KEYS.USER_DATA, response);
-    }
-    
-    return response;
+  
+  if (response.data) {
+    storage.set(CONFIG.STORAGE_KEYS.USER_DATA, response.data);
   }
+  
+  return response.data; // Return data
+}
+
+async changePassword(currentPassword, newPassword) {
+  const response = await apiClient.post(getEndpoint('CHANGE_PASSWORD'), {
+    current_password: currentPassword,
+    new_password: newPassword
+  });
+  return response.data; // Return data
+}
 
   // Change password (when you implement this endpoint)
   async changePassword(currentPassword, newPassword) {

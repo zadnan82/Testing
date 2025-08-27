@@ -1,0 +1,11 @@
+
+qa(h(Vanliga Frågor))  
+pg(h(Complete Platform)n(SevDO)c(Full-featured platform showcase))
+mn(h(Main Navigation)m(Dashboard,Products,Services,About))
+cd(h(Featured Tool)t(Our revolutionary development tool!)b(Try Free)ft(No credit card required))
+lf(h(Member Access)b(Login))
+rf(h(Join Us)b(Sign Up))
+ch(h(Live Help)p(Ask our experts...)b(Send))
+em(h(Get in Touch)s(Business Inquiry)b(Send Email))
+ft(h(SevDO Technologies)t(Building tomorrow's web today)y(2024)l(Docs,API,Blog,Help)s(GitHub,Twitter,LinkedIn))
+

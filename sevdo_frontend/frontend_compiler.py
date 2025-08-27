@@ -9,18 +9,53 @@ import os
 import concurrent.futures as cf
 
 
-# ----------------- Simple DSL -> JSX mapping -----------------
-# The DSL is inspired by `sevdo_frontend/suggestions for mappings.txt` and `example_code.md`.
-# We keep the first milestone small and pragmatic (single-line statements, simple props),
-# and can iterate to support nested structures and more complex forms.
-
-
 class ParseError(Exception):
     pass
 
 
+# ----Component registry----
+COMPONENT_REGISTRY = {}
+
+
+def register_component(token, render_func):
+    COMPONENT_REGISTRY[token] = render_func
+
+
+def load_prefabs():
+    prefabs_dir = Path(__file__).parent / "prefabs"
+    if not prefabs_dir.exists():
+        return
+
+    import importlib.util
+    import sys
+
+    for file in prefabs_dir.glob("*.py"):
+        if file.name == "__init__.py":
+            continue
+        try:
+            # Import using file path instead of module name
+            spec = importlib.util.spec_from_file_location(file.stem, file)
+            if spec and spec.loader:
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[file.stem] = module
+                spec.loader.exec_module(module)
+
+                if hasattr(module, "COMPONENT_TOKEN") and hasattr(
+                    module, "render_prefab"
+                ):
+                    register_component(module.COMPONENT_TOKEN, module.render_prefab)
+                    print(f"Registered component: {module.COMPONENT_TOKEN}")
+        except Exception as e:
+            print(f"Error loading component {file.name}: {e}")
+            # Skip files that can't be imported
+            pass
+
+
 def _split_top_level(content: str) -> List[str]:
-    """Deprecated for nesting; kept for backwards-compat. Not used by nested parser."""
+    """Deprecated for nesting; kept for backwards-compat.
+
+    Not used by nested parser.
+    """
     lines = [line.strip() for line in content.splitlines()]
     return [line for line in lines if line]
 
@@ -88,7 +123,7 @@ def _parse_identifier(cur: _Cursor) -> str:
     start = cur.pos
     while not cur.eof() and cur.text[cur.pos].isalpha():
         cur.pos += 1
-    return cur.text[start:cur.pos]
+    return cur.text[start : cur.pos]
 
 
 def _extract_balanced(cur: _Cursor, open_ch: str, close_ch: str) -> str:
@@ -104,7 +139,7 @@ def _extract_balanced(cur: _Cursor, open_ch: str, close_ch: str) -> str:
         elif ch == close_ch:
             depth -= 1
             if depth == 0:
-                content = cur.text[start:cur.pos]
+                content = cur.text[start : cur.pos]
                 cur.advance(1)
                 return content
         cur.advance(1)
@@ -128,7 +163,13 @@ def _parse_props_from_text(text: str) -> Dict[str, str]:
 
 
 class Node:
-    def __init__(self, token: str, args: Optional[str] = None, props: Optional[Dict[str, str]] = None, children: Optional[List["Node"]] = None):
+    def __init__(
+        self,
+        token: str,
+        args: Optional[str] = None,
+        props: Optional[Dict[str, str]] = None,
+        children: Optional[List["Node"]] = None,
+    ):
         self.token = token
         self.args = args
         self.props = props or {}
@@ -189,8 +230,15 @@ def _join_class_names(existing: Optional[str], extra: Optional[str]) -> str:
     return existing or extra
 
 
-def _jsx_for_token(token: str, args: Optional[str], props: Dict[str, str]) -> str:
+def _jsx_for_token(
+    token: str,
+    args: Optional[str],
+    props: Dict[str, str],
+) -> str:
     token = token.strip()
+
+    if token in COMPONENT_REGISTRY:
+        return COMPONENT_REGISTRY[token](args, props)
 
     # h — Header
     if token == "h":
@@ -219,22 +267,29 @@ def _jsx_for_token(token: str, args: Optional[str], props: Dict[str, str]) -> st
                         k, v = part.split("=", 1)
                         inline_props[k.strip()] = v.strip()
         # Merge priority: props from {} override inline
-        effective_label = (props.get("label") or inline_props.get("label"))
+        effective_label = props.get("label") or inline_props.get("label")
         if effective_label:
             return (
-                f"<label className=\"block\">"
-                f"<span className=\"mb-1 block\">{effective_label}</span>"
-                f"<input className=\"border rounded px-3 py-2 w-full\" placeholder=\"{placeholder}\" />"
+                f'<label className="block">'
+                f'<span className="mb-1 block">{effective_label}</span>'
+                f'<input className="border rounded px-3 py-2 w-full" '
+                f'placeholder="{placeholder}" />'
                 f"</label>"
             )
-        return f"<input className=\"border rounded px-3 py-2 w-full\" placeholder=\"{placeholder}\" />"
+        return (
+            f'<input className="border rounded px-3 py-2 w-full" '
+            f'placeholder="{placeholder}" />'
+        )
 
     # b — Button (text taken from args; onClick prop supported)
     if token == "b":
         label = (args or "Click").strip()
         on_click = props.get("onClick")
         handler = (" onClick={" + on_click + "}") if on_click else ""
-        return f"<button className=\"bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded\"{handler}>{label}</button>"
+        return (
+            f'<button className="bg-blue-600 hover:bg-blue-700 text-white '
+            f'font-medium px-4 py-2 rounded"{handler}>{label}</button>'
+        )
 
     # Containers are rendered in the recursive renderer below
     if token in CONTAINER_TOKENS:
@@ -243,15 +298,21 @@ def _jsx_for_token(token: str, args: Optional[str], props: Dict[str, str]) -> st
             base = "flex flex-col gap-4"
             extra = props.get("class")
             class_name = _join_class_names(base, extra)
-            return f"<div className=\"{class_name}\"></div>"
+            return f'<div className="{class_name}"></div>'
         if token == "f":
             return "<form></form>"
 
     # n — Navbar
     if token == "n":
         links = (args or "").split(",") if args else []
-        items = ''.join([f'<a className="px-3 py-2 hover:underline" href="#">{link.strip()}</a>' for link in links if link.strip()])
-        return f"<nav className=\"flex gap-2\">{items}</nav>"
+        items = "".join(
+            [
+                f'<a className="px-3 py-2 hover:underline" href="#">{link.strip()}</a>'
+                for link in links
+                if link.strip()
+            ]
+        )
+        return f'<nav className="flex gap-2">{items}</nav>'
 
     # img — Image
     if token == "img":
@@ -263,22 +324,33 @@ def _jsx_for_token(token: str, args: Optional[str], props: Dict[str, str]) -> st
             else:
                 src = args
         alt = props.get("alt", "")
-        return f"<img className=\"max-w-full\" src=\"{src.strip()}\" alt=\"{alt}\" />"
+        return f'<img className="max-w-full" src="{src.strip()}" alt="{alt}" />'
 
     # sel — Select
     if token == "sel":
         options = (args or "").split(",") if args else []
-        opts = ''.join([f'<option key="{o.strip()}" value="{o.strip()}">{o.strip()}</option>' for o in options if o.strip()])
-        return f"<select className=\"border rounded px-3 py-2\">{opts}</select>"
+        opts = "".join(
+            [
+                f'<option key="{o.strip()}" value="{o.strip()}">{o.strip()}</option>'
+                for o in options
+                if o.strip()
+            ]
+        )
+        return f'<select className="border rounded px-3 py-2">{opts}</select>'
 
     raise ParseError(f"Unknown token: {token}")
 
 
-def dsl_to_jsx(dsl_source: str, include_imports: bool = True, component_name: str = "GeneratedComponent") -> str:
+def dsl_to_jsx(
+    dsl_source: str,
+    include_imports: bool = True,
+    component_name: str = "GeneratedComponent",
+) -> str:
     """Convert DSL (with optional nesting) into a React component string.
 
     If include_imports is True, wraps in React import and exports a component.
     """
+
     def render(node: Node, level: int = 1) -> str:
         indent = "  " * level
         if node.token == "c":
@@ -286,13 +358,21 @@ def dsl_to_jsx(dsl_source: str, include_imports: bool = True, component_name: st
             extra = node.props.get("class")
             class_name = _join_class_names(base, extra)
             if not node.children:
-                return f"{indent}<div className=\"{class_name}\"></div>"
-            children_jsx = "\n".join(render(child, level + 1) for child in node.children)
-            return f"{indent}<div className=\"{class_name}\">\n{children_jsx}\n{indent}</div>"
+                return f'{indent}<div className="{class_name}"></div>'
+            children_jsx = "\n".join(
+                render(child, level + 1) for child in node.children
+            )
+            return (
+                f'{indent}<div className="{class_name}">\n'
+                f"{children_jsx}\n"
+                f"{indent}</div>"
+            )
         if node.token == "f":
             if not node.children:
                 return f"{indent}<form></form>"
-            children_jsx = "\n".join(render(child, level + 1) for child in node.children)
+            children_jsx = "\n".join(
+                render(child, level + 1) for child in node.children
+            )
             return f"{indent}<form>\n{children_jsx}\n{indent}</form>"
         # Leaf
         return f"{indent}" + _jsx_for_token(node.token, node.args, node.props)
@@ -329,7 +409,7 @@ def jsx_to_dsl(jsx_source: str) -> List[str]:
         tokens.append("i")
     if "<button" in text:
         tokens.append("b")
-    if "<div className=\"flex flex-col gap-4\"" in text:
+    if '<div className="flex flex-col gap-4"' in text:
         tokens.append("c")
     if "<form" in text:
         tokens.append("f")
@@ -348,11 +428,11 @@ app = FastAPI(default_response_class=ORJSONResponse)
 
 
 class FECompileRequest(BaseModel):
-	input_path: str
-	output_path: str
-	include_imports: bool = True
-	component_name: str = "GeneratedComponent"
-	use_cache: bool = True
+    input_path: str
+    output_path: str
+    include_imports: bool = True
+    component_name: str = "GeneratedComponent"
+    use_cache: bool = True
 
 
 class FEDecompileRequest(BaseModel):
@@ -398,26 +478,43 @@ class _TTLCache:
 
 DSL_TO_JSX_CACHE = _TTLCache(CACHE_MAXSIZE, CACHE_TTL_SECONDS)
 JSX_TO_DSL_CACHE = _TTLCache(CACHE_MAXSIZE, CACHE_TTL_SECONDS)
+load_prefabs()
 
 
 def _read_text_with_limits(path: str) -> str:
     p = Path(path)
     if not p.exists():
-        raise HTTPException(status_code=404, detail={"code": "file_not_found", "path": str(p)})
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "file_not_found", "path": str(p)},
+        )
     size = p.stat().st_size
     if size > MAX_FILE_BYTES:
-        raise HTTPException(status_code=413, detail={"code": "file_too_large", "bytes": size, "limit": MAX_FILE_BYTES})
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "code": "file_too_large",
+                "bytes": size,
+                "limit": MAX_FILE_BYTES,
+            },
+        )
     try:
         return p.read_text(encoding="utf-8")
     except Exception:
-        raise HTTPException(status_code=400, detail={"code": "file_read_error", "path": str(p)})
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "file_read_error", "path": str(p)},
+        )
 
 
 def _ensure_output_parent_exists(path: str):
     p = Path(path)
     parent = p.parent
     if parent and not parent.exists():
-        raise HTTPException(status_code=404, detail={"code": "output_dir_not_found", "path": str(parent)})
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "output_dir_not_found", "path": str(parent)},
+        )
 
 
 def _write_if_changed(path: str, content: str) -> bool:
@@ -429,7 +526,10 @@ def _write_if_changed(path: str, content: str) -> bool:
         p.write_text(content, encoding="utf-8")
         return True
     except Exception:
-        raise HTTPException(status_code=400, detail={"code": "file_write_error", "path": str(p)})
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "file_write_error", "path": str(p)},
+        )
 
 
 # ----------------- API endpoints -----------------
@@ -442,18 +542,29 @@ def fe_compile_api(body: FECompileRequest):
         cache_key = f"dsl:{hash((content, body.include_imports, body.component_name))}"
         cached = DSL_TO_JSX_CACHE.get(cache_key) if body.use_cache else None
         if cached is None:
-            jsx = dsl_to_jsx(content, include_imports=body.include_imports, component_name=body.component_name)
+            jsx = dsl_to_jsx(
+                content,
+                include_imports=body.include_imports,
+                component_name=body.component_name,
+            )
             if body.use_cache:
                 DSL_TO_JSX_CACHE.set(cache_key, jsx)
         else:
             jsx = cached
         _ensure_output_parent_exists(body.output_path)
         changed = _write_if_changed(body.output_path, jsx)
-        return {"written_to": body.output_path, "bytes": len(jsx), "changed": changed}
+        return {
+            "written_to": body.output_path,
+            "bytes": len(jsx),
+            "changed": changed,
+        }
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=400, detail={"code": "unexpected_error", "error": str(exc)})
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "unexpected_error", "error": str(exc)},
+        )
 
 
 @app.post("/api/fe-translate/from-s")
@@ -471,21 +582,30 @@ def fe_decompile_api(body: FEDecompileRequest):
             token_str = cached
             tokens = token_str.split() if token_str else []
         if not tokens:
-            raise HTTPException(status_code=400, detail={"code": "invalid_code_format", "message": "No recognizable frontend components found"})
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "invalid_code_format",
+                    "message": ("No recognizable frontend components found"),
+                },
+            )
         return {"tokens": tokens}
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=400, detail={"code": "unexpected_error", "error": str(exc)})
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "unexpected_error", "error": str(exc)},
+        )
 
 
 class FEBatchCompileJob(BaseModel):
-	id: Optional[str] = None
-	input_path: str
-	output_path: str
-	include_imports: bool = True
-	component_name: str = "GeneratedComponent"
-	use_cache: bool = True
+    id: Optional[str] = None
+    input_path: str
+    output_path: str
+    include_imports: bool = True
+    component_name: str = "GeneratedComponent"
+    use_cache: bool = True
 
 
 class FEBatchCompileRequest(BaseModel):
@@ -501,20 +621,47 @@ def fe_compile_batch_api(body: FEBatchCompileRequest):
         job_id = job.id or str(idx)
         try:
             content = _read_text_with_limits(job.input_path)
-            cache_key = f"dsl:{hash((content, job.include_imports, job.component_name))}"
+            cache_key = "dsl:" + str(
+                hash((content, job.include_imports, job.component_name))
+            )
             jsx = DSL_TO_JSX_CACHE.get(cache_key) if job.use_cache else None
             if jsx is None:
-                jsx = dsl_to_jsx(content, include_imports=job.include_imports, component_name=job.component_name)
+                jsx = dsl_to_jsx(
+                    content,
+                    include_imports=job.include_imports,
+                    component_name=job.component_name,
+                )
                 if job.use_cache:
                     DSL_TO_JSX_CACHE.set(cache_key, jsx)
             _ensure_output_parent_exists(job.output_path)
             changed = _write_if_changed(job.output_path, jsx)
-            res = {"id": job_id, "written_to": job.output_path, "bytes": len(jsx), "changed": changed}
+            res = {
+                "id": job_id,
+                "written_to": job.output_path,
+                "bytes": len(jsx),
+                "changed": changed,
+            }
             return (idx, True, res)
         except HTTPException as http_exc:
-            return (idx, False, {"id": job_id, "status": http_exc.status_code, "error": http_exc.detail})
+            return (
+                idx,
+                False,
+                {
+                    "id": job_id,
+                    "status": http_exc.status_code,
+                    "error": http_exc.detail,
+                },
+            )
         except Exception as exc:
-            return (idx, False, {"id": job_id, "status": 400, "error": {"code": "unexpected_error", "error": str(exc)}})
+            return (
+                idx,
+                False,
+                {
+                    "id": job_id,
+                    "status": 400,
+                    "error": {"code": "unexpected_error", "error": str(exc)},
+                },
+            )
 
     with cf.ThreadPoolExecutor(max_workers=BATCH_MAX_WORKERS) as executor:
         futures = [executor.submit(process, i, job) for i, job in enumerate(body.jobs)]
@@ -524,7 +671,10 @@ def fe_compile_batch_api(body: FEBatchCompileRequest):
             if success:
                 ok += 1
 
-    return {"results": results, "totals": {"ok": ok, "failed": len(results) - ok}}
+    return {
+        "results": results,
+        "totals": {"ok": ok, "failed": len(results) - ok},
+    }
 
 
 class FEBatchDecompileJob(BaseModel):
@@ -546,20 +696,47 @@ def fe_decompile_batch_api(body: FEBatchDecompileRequest):
         job_id = job.id or str(idx)
         try:
             jsx = _read_text_with_limits(job.code_path)
-            cache_key = f"jsx:{hash(jsx)}"
-            token_str = JSX_TO_DSL_CACHE.get(cache_key) if job.use_cache else None
+            cache_key = "jsx:" + str(hash(jsx))
+            token_str = None
+            if job.use_cache:
+                token_str = JSX_TO_DSL_CACHE.get(cache_key)
             if token_str is None:
                 tokens = jsx_to_dsl(jsx)
                 if not tokens:
-                    raise HTTPException(status_code=400, detail={"code": "invalid_code_format", "message": "No recognizable frontend components found"})
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "code": "invalid_code_format",
+                            "message": ("No recognizable frontend components found"),
+                        },
+                    )
                 token_str = " ".join(tokens)
                 if job.use_cache:
                     JSX_TO_DSL_CACHE.set(cache_key, token_str)
-            return (idx, True, {"id": job_id, "tokens": token_str.split() if token_str else []})
+            tokens_list = []
+            if token_str:
+                tokens_list = token_str.split()
+            return (idx, True, {"id": job_id, "tokens": tokens_list})
         except HTTPException as http_exc:
-            return (idx, False, {"id": job_id, "status": http_exc.status_code, "error": http_exc.detail})
+            return (
+                idx,
+                False,
+                {
+                    "id": job_id,
+                    "status": http_exc.status_code,
+                    "error": http_exc.detail,
+                },
+            )
         except Exception as exc:
-            return (idx, False, {"id": job_id, "status": 400, "error": {"code": "unexpected_error", "error": str(exc)}})
+            return (
+                idx,
+                False,
+                {
+                    "id": job_id,
+                    "status": 400,
+                    "error": {"code": "unexpected_error", "error": str(exc)},
+                },
+            )
 
     with cf.ThreadPoolExecutor(max_workers=BATCH_MAX_WORKERS) as executor:
         futures = [executor.submit(process, i, job) for i, job in enumerate(body.jobs)]
@@ -569,14 +746,25 @@ def fe_decompile_batch_api(body: FEBatchDecompileRequest):
             if success:
                 ok += 1
 
-    return {"results": results, "totals": {"ok": ok, "failed": len(results) - ok}}
+    return {
+        "results": results,
+        "totals": {"ok": ok, "failed": len(results) - ok},
+    }
 
 
 @app.get("/api/fe-cache/stats")
 def fe_cache_stats():
     return {
-        "dsl_to_jsx": {"size": len(DSL_TO_JSX_CACHE._store), "maxsize": DSL_TO_JSX_CACHE.maxsize, "ttl_seconds": DSL_TO_JSX_CACHE.ttl},
-        "jsx_to_dsl": {"size": len(JSX_TO_DSL_CACHE._store), "maxsize": JSX_TO_DSL_CACHE.maxsize, "ttl_seconds": JSX_TO_DSL_CACHE.ttl},
+        "dsl_to_jsx": {
+            "size": len(DSL_TO_JSX_CACHE._store),
+            "maxsize": DSL_TO_JSX_CACHE.maxsize,
+            "ttl_seconds": DSL_TO_JSX_CACHE.ttl,
+        },
+        "jsx_to_dsl": {
+            "size": len(JSX_TO_DSL_CACHE._store),
+            "maxsize": JSX_TO_DSL_CACHE.maxsize,
+            "ttl_seconds": JSX_TO_DSL_CACHE.ttl,
+        },
     }
 
 
@@ -588,9 +776,9 @@ def fe_cache_flush():
 
 
 if __name__ == "__main__":
-    # Minimal CLI behavior parity with backend: read from `sevdo_frontend/input.txt` if exists
-    in_path = Path("sevdo_frontend/input.txt")
-    out_path = Path("sevdo_frontend/output.jsx")
+    # `sevdo_frontend/input.txt` if exists
+    in_path = Path("input.txt")
+    out_path = Path("output.jsx")
     if in_path.exists():
         jsx = dsl_to_jsx(in_path.read_text(encoding="utf-8"))
         out_path.write_text(jsx, encoding="utf-8")

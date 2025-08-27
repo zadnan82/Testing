@@ -425,3 +425,30 @@ def hash_password(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify password using security service"""
     return security_service.verify_password(plain_password, hashed_password)
+
+
+async def get_current_active_user_websocket(token: str, db: Session) -> User:
+    """Get current user from WebSocket token parameter"""
+    # Find token in database
+    db_token = db.execute(
+        select(Token).where(Token.token == token)
+    ).scalar_one_or_none()
+
+    if not db_token:
+        raise InvalidCredentialsError("Invalid token")
+
+    # Check if token is expired
+    if db_token.expire_date < datetime.utcnow():
+        db.delete(db_token)  # Clean up expired token
+        db.commit()
+        raise InvalidCredentialsError("Token expired")
+
+    # Get user
+    user = db.execute(
+        select(User).where(User.id == db_token.user_id)
+    ).scalar_one_or_none()
+
+    if not user:
+        raise InvalidCredentialsError("User not found")
+
+    return user

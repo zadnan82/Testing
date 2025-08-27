@@ -1,80 +1,75 @@
-// Authentication service - handles all auth-related API calls
+// user_frontend/src/services/auth.service.js
+
 import { apiClient } from './api';
 import { CONFIG, getEndpoint } from '../config/api.config';
 import { storage } from '../utils/storage';
 
 export class AuthService {
-  // Register new user
+  // Register new user - FIXED to match backend schema
   async register(userData) {
-  const response = await apiClient.post(getEndpoint('REGISTER'), {
-    first_name: userData.firstName,
-    last_name: userData.lastName,
-    email: userData.email,
-    password: userData.password,
-    user_type_id: userData.userTypeId || 1
-  });
-  return response.data; // Return the data
-}
-
-  // Login user (FastAPI uses OAuth2PasswordRequestForm)
- async login(email, password) {
-  // Create FormData for OAuth2PasswordRequestForm
-  const formData = new FormData();
-  formData.append('username', email);
-  formData.append('password', password);
-  
-  // Use postForm instead of axios-specific postForm
-  const response = await apiClient.postForm(getEndpoint('LOGIN'), formData);
-  
-  // Store session token - access data directly (not response.data)
-  if (response.access_token) {
-    storage.set(CONFIG.STORAGE_KEYS.SESSION_TOKEN, response.access_token);
+    const response = await apiClient.post(getEndpoint('REGISTER'), {
+      first_name: userData.firstName,
+      last_name: userData.lastName,
+      email: userData.email,
+      password: userData.password,
+      confirm_password: userData.password, // Add confirm_password field
+      user_type_id: userData.userTypeId || 1
+    });
+    return response; // Return response directly (no .data)
   }
-  
-  return response; // Return the response directly (not response.data)
-}
 
-  // Get current user profile
-  async getCurrentUser() {
-  const response = await apiClient.get(getEndpoint('ME'));
-  
-  // Store user data - access response directly (not response.data)
-  if (response) {
-    storage.set(CONFIG.STORAGE_KEYS.USER_DATA, response);
+  // Login user - FIXED to use Form Data for OAuth2PasswordRequestForm
+  async login(email, password) {
+    // Create FormData for OAuth2PasswordRequestForm
+    const formData = new FormData();
+    formData.append('username', email); // Backend expects 'username' field
+    formData.append('password', password);
+    
+    // Use postForm method
+    const response = await apiClient.postForm(getEndpoint('LOGIN'), formData);
+    
+    // Store session token
+    if (response.access_token) {
+      storage.set(CONFIG.STORAGE_KEYS.SESSION_TOKEN, response.access_token);
+    }
+    
+    return response;
   }
-  
-  return response; // Return the response directly
-}
 
-  // Update user profile (when you implement this endpoint)
+  // Get current user profile - FIXED endpoint
+  async getCurrentUser(options = {}) {
+    const response = await apiClient.get(getEndpoint('ME'), {}, options);
+    
+    // Store user data 
+    if (response) {
+      storage.set(CONFIG.STORAGE_KEYS.USER_DATA, response);
+    }
+    
+    return response;
+  }
+
+  // Update user profile - FIXED to match backend schema
   async updateProfile(userData) {
     const payload = {};
     if (userData.firstName) payload.first_name = userData.firstName;
     if (userData.lastName) payload.last_name = userData.lastName;
     if (userData.email) payload.email = userData.email;
     
-    const response = await apiClient.patch(getEndpoint('UPDATE_PROFILE'), payload);
-  
-  if (response.data) {
-    storage.set(CONFIG.STORAGE_KEYS.USER_DATA, response.data);
+    const response = await apiClient.put(getEndpoint('UPDATE_PROFILE'), payload);
+    
+    if (response) {
+      storage.set(CONFIG.STORAGE_KEYS.USER_DATA, response);
+    }
+    
+    return response;
   }
-  
-  return response.data; // Return data
-}
 
-async changePassword(currentPassword, newPassword) {
-  const response = await apiClient.post(getEndpoint('CHANGE_PASSWORD'), {
-    current_password: currentPassword,
-    new_password: newPassword
-  });
-  return response.data; // Return data
-}
-
-  // Change password (when you implement this endpoint)
+  // Change password - FIXED to match backend schema
   async changePassword(currentPassword, newPassword) {
     const response = await apiClient.post(getEndpoint('CHANGE_PASSWORD'), {
       current_password: currentPassword,
-      new_password: newPassword
+      new_password: newPassword,
+      confirm_new_password: newPassword
     });
     return response;
   }
@@ -113,19 +108,19 @@ async changePassword(currentPassword, newPassword) {
     this.clearLocalSession();
   }
 
-  // Get all user sessions (when you implement this endpoint)
+  // Get all user sessions
   async getSessions() {
     const response = await apiClient.get(getEndpoint('SESSIONS'));
     return response;
   }
 
-  // Revoke specific session (when you implement this endpoint)
+  // Revoke specific session
   async revokeSession(sessionId) {
-    const response = await apiClient.delete(`${getEndpoint('REVOKE_SESSION')}/${sessionId}`);
+    const response = await apiClient.delete(`${getEndpoint('SESSIONS')}/${sessionId}`);
     return response;
   }
 
-  // Forgot password (when you implement this endpoint)
+  // Forgot password
   async forgotPassword(email) {
     const response = await apiClient.post(getEndpoint('FORGOT_PASSWORD'), {
       email: email
@@ -133,11 +128,12 @@ async changePassword(currentPassword, newPassword) {
     return response;
   }
 
-  // Reset password (when you implement this endpoint)
+  // Reset password
   async resetPassword(token, newPassword) {
     const response = await apiClient.post(getEndpoint('RESET_PASSWORD'), {
       token: token,
-      new_password: newPassword
+      new_password: newPassword,
+      confirm_password: newPassword
     });
     return response;
   }

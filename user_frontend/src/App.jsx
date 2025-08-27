@@ -8,7 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/ui/Toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoadingScreen from './components/LoadingScreen';
-//import ErrorScreen from './components/ErrorScreen';
+import ErrorScreen from './components/ErrorScreen'; // FIXED: Added missing import
 
 // Pages
 import LoginPage from './pages/auth/LoginPage';
@@ -197,10 +197,10 @@ const MainRouter = () => {
     const protectedRoutes = [ROUTES.DASHBOARD];
 
     if (!isAuthenticated && protectedRoutes.includes(currentRoute)) {
-      console.log('🔒 Not authenticated, redirecting to login');
+      console.log('Not authenticated, redirecting to login');
       navigate(ROUTES.LOGIN, true);
     } else if (isAuthenticated && publicRoutes.includes(currentRoute)) {
-      console.log('✅ Already authenticated, redirecting to dashboard');
+      console.log('Already authenticated, redirecting to dashboard');
       
       const redirectUrl = sessionStorage.getItem('redirectAfterLogin');
       if (redirectUrl) {
@@ -312,7 +312,7 @@ const App = () => {
 
           if (domContentLoaded > 0 && pageLoadComplete > 0) {
             if (process.env.NODE_ENV === 'development') {
-              console.group('⚡ Performance Metrics');
+              console.group('Performance Metrics');
               console.log('DOM Content Loaded:', domContentLoaded, 'ms');
               console.log('Page Load Complete:', pageLoadComplete, 'ms');
               console.groupEnd();

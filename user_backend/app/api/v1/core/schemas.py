@@ -1,9 +1,18 @@
 # user_backend/app/api/v1/core/schemas.py
 
 from datetime import datetime
-from typing import Optional, Dict, Any
 from pydantic import BaseModel, EmailStr, Field, validator, ConfigDict
 import re
+from typing import Optional, Dict, Any, List
+from user_backend.app.api.v1.core.models import (
+    AIInsightType,
+    FileType,
+    GenerationStatus,
+    ProjectStatus,
+    ProjectType,
+    TokenCategory,
+    TokenComplexity,
+)
 
 
 # ----- Base Schemas -----
@@ -483,31 +492,6 @@ class PaginationSchema(BaseModel):
         return v
 
 
-# ----- Health Check Schema -----
-
-
-class HealthCheckSchema(BaseModel):
-    """Schema for health check response"""
-
-    status: str
-    environment: str
-    version: str
-    database: str
-    timestamp: datetime
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "status": "healthy",
-                "environment": "development",
-                "version": "2.0.0",
-                "database": "connected",
-                "timestamp": "2024-01-15T10:30:00Z",
-            }
-        }
-    )
-
-
 # ----- Metrics Schema -----
 
 
@@ -580,3 +564,484 @@ class PaginatedResponse(BaseModel):
             }
         }
     )
+
+
+class ProjectCreateSchema(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = None
+    project_type: ProjectType = ProjectType.WEB_APP
+    tokens: List[str] = Field(default=[], description="List of tokens to use")
+    config: Dict[str, Any] = Field(default={})
+    working_directory: Optional[str] = None
+    include_imports: bool = True
+
+    @validator("tokens")
+    def validate_tokens(cls, v):
+        if not isinstance(v, list):
+            raise ValueError("Tokens must be a list")
+        return [token.strip().lower() for token in v if token.strip()]
+
+
+class ProjectUpdateSchema(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = None
+    project_type: Optional[ProjectType] = None
+    tokens: Optional[List[str]] = None
+    config: Optional[Dict[str, Any]] = None
+    working_directory: Optional[str] = None
+    include_imports: Optional[bool] = None
+
+
+class ProjectOutSchema(BaseModel):
+    id: int
+    name: str
+    description: Optional[str]
+    project_type: ProjectType
+    tokens: List[str]
+    status: ProjectStatus
+    config: Dict[str, Any]
+    working_directory: Optional[str]
+    include_imports: bool
+    generation_count: int
+    last_generated_at: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+    user_id: int
+
+    model_config = {"from_attributes": True}
+
+
+class ProjectGenerateSchema(BaseModel):
+    tokens: Optional[List[str]] = None  # Override project tokens
+    config: Optional[Dict[str, Any]] = None  # Override project config
+    async_generation: bool = True  # Run generation in background
+
+
+class ProjectGenerationOutSchema(BaseModel):
+    id: int
+    project_id: int
+    status: GenerationStatus
+    tokens_used: List[str]
+    output_path: Optional[str]
+    error_message: Optional[str]
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
+    generation_time_seconds: Optional[float]
+    files_generated: int
+    lines_of_code: int
+
+    model_config = {"from_attributes": True}
+
+
+# ==================== TOKEN SCHEMAS ====================
+
+
+class TokenDefinitionOutSchema(BaseModel):
+    token: str
+    name: str
+    description: str
+    category: TokenCategory
+    complexity: TokenComplexity
+    dependencies: List[str]
+    conflicts_with: List[str]
+    example_usage: Optional[str]
+    usage_count: int
+
+    model_config = {"from_attributes": True}
+
+
+class TokenSearchSchema(BaseModel):
+    query: Optional[str] = None
+    category: Optional[TokenCategory] = None
+    complexity: Optional[TokenComplexity] = None
+    limit: int = Field(default=50, le=200)
+
+
+class TokenValidationSchema(BaseModel):
+    tokens: List[str]
+
+
+class TokenValidationResultSchema(BaseModel):
+    is_valid: bool
+    errors: List[str] = []
+    warnings: List[str] = []
+    suggestions: List[str] = []
+    missing_dependencies: List[str] = []
+    conflicts: List[str] = []
+
+
+class TokenCombinationCreateSchema(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = None
+    tokens: List[str] = Field(..., min_items=1)
+    category: Optional[TokenCategory] = None
+    is_public: bool = False
+
+
+class TokenCombinationOutSchema(BaseModel):
+    id: int
+    name: str
+    description: Optional[str]
+    tokens: List[str]
+    category: Optional[TokenCategory]
+    is_public: bool
+    usage_count: int
+    created_at: datetime
+    user_id: int
+
+    model_config = {"from_attributes": True}
+
+
+# ==================== AI SCHEMAS ====================
+
+
+class AIProjectFromDescriptionSchema(BaseModel):
+    description: str = Field(..., min_length=10, max_length=2000)
+    project_type: Optional[ProjectType] = None
+    complexity_preference: Optional[TokenComplexity] = None
+
+
+class AIProjectFromDescriptionResultSchema(BaseModel):
+    suggested_name: str
+    suggested_description: str
+    suggested_tokens: List[str]
+    confidence: float
+    reasoning: str
+    project_type: ProjectType
+
+
+class AIChatMessageSchema(BaseModel):
+    message: str = Field(..., min_length=1, max_length=1000)
+    project_id: Optional[int] = None
+    conversation_id: Optional[int] = None
+
+
+class AIChatResponseSchema(BaseModel):
+    response: str
+    suggestions: List[str] = []
+    suggested_tokens: List[str] = []
+    conversation_id: int
+
+
+class AIInsightOutSchema(BaseModel):
+    id: int
+    insight_type: AIInsightType
+    content: str
+    confidence: float
+    metadata: Dict[str, Any]
+    is_applied: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ==================== TEMPLATE SCHEMAS ====================
+
+
+class ProjectTemplateOutSchema(BaseModel):
+    id: int
+    name: str
+    description: str
+    project_type: ProjectType
+    tokens: List[str]
+    config: Dict[str, Any]
+    preview_image_url: Optional[str]
+    is_featured: bool
+    usage_count: int
+    rating: Optional[float]
+    tags: List[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TemplateUseSchema(BaseModel):
+    project_name: str = Field(..., min_length=1, max_length=200)
+    project_description: Optional[str] = None
+    customize_config: Optional[Dict[str, Any]] = None
+
+
+# ==================== USER ENHANCEMENT SCHEMAS ====================
+
+
+class UserActivityOutSchema(BaseModel):
+    id: int
+    activity_type: str
+    description: str
+    project_id: Optional[int]
+    metadata: Dict[str, Any]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class UserAnalyticsOutSchema(BaseModel):
+    date: datetime
+    projects_created: int
+    generations_run: int
+    tokens_used: int
+    time_spent_minutes: int
+    weekly_projects: int
+    monthly_projects: int
+
+    model_config = {"from_attributes": True}
+
+
+# ==================== FILE SCHEMAS ====================
+
+
+class FileUploadResponseSchema(BaseModel):
+    id: int
+    filename: str
+    file_path: str
+    file_type: FileType
+    file_size: int
+    mime_type: Optional[str]
+    uploaded_at: datetime
+
+
+class ProjectFileOutSchema(BaseModel):
+    id: int
+    project_id: int
+    filename: str
+    file_path: str
+    file_type: FileType
+    file_size: int
+    mime_type: Optional[str]
+    checksum: Optional[str]
+    is_generated: bool
+    uploaded_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ==================== ANALYTICS SCHEMAS ====================
+
+
+class DashboardStatsSchema(BaseModel):
+    total_projects: int
+    active_projects: int
+    completed_projects: int
+    total_generations: int
+    favorite_tokens: List[Dict[str, Any]]
+    recent_activity: List[UserActivityOutSchema]
+    usage_over_time: List[Dict[str, Any]]
+
+
+class TokenAnalyticsSchema(BaseModel):
+    token: str
+    name: str
+    usage_count: int
+    success_rate: float
+    avg_generation_time: float
+    most_combined_with: List[str]
+
+
+class PerformanceMetricsSchema(BaseModel):
+    avg_generation_time: float
+    success_rate: float
+    most_popular_tokens: List[TokenAnalyticsSchema]
+    project_type_distribution: Dict[str, int]
+    monthly_usage: List[Dict[str, Any]]
+
+
+class SystemHealthSchema(BaseModel):
+    overall_status: str
+    services: List["SystemStatusSchema"]
+    version: str
+    uptime: int
+    last_updated: datetime
+
+
+class SystemStatusSchema(BaseModel):
+    service: str
+    status: str  # "healthy", "degraded", "down"
+    response_time: Optional[float] = None
+    last_checked: datetime
+
+
+class DashboardAnalyticsSchema(BaseModel):
+    total_projects: int
+    recent_projects: int
+    total_generations: int
+    successful_generations: int
+    success_rate: float
+    most_used_project_type: Optional[str]
+    recent_activity_count: int
+    period_days: int
+
+
+class ProjectAnalyticsSchema(BaseModel):
+    project_id: int
+    project_name: str
+    project_type: str
+    total_generations: int
+    successful_generations: int
+    success_rate: float
+    avg_generation_time: float
+    tokens_used: int
+    last_generated_at: Optional[datetime]
+    created_at: datetime
+
+
+class UsageAnalyticsSchema(BaseModel):
+    daily_token_usage: List[Dict[str, Any]]
+    top_tokens: List[Dict[str, Any]]
+    daily_generations: List[Dict[str, Any]]
+    period_days: int
+
+
+# ==================== WebSocket & Real-time Schemas ====================
+
+
+class WebSocketMessageSchema(BaseModel):
+    type: str
+    data: Dict
+    timestamp: Optional[datetime] = None
+
+
+class GenerationProgressSchema(BaseModel):
+    project_id: int
+    generation_id: int
+    status: str
+    progress_percentage: float
+    current_step: str
+    estimated_time_remaining: Optional[int] = None
+    logs: List[str] = []
+
+
+# ==================== Enhanced Project Schemas ====================
+
+
+class ProjectExportSchema(BaseModel):
+    format: str = "json"  # "json", "yaml", "zip"
+    include_files: bool = True
+    include_history: bool = False
+
+
+class ProjectImportSchema(BaseModel):
+    project_data: Dict
+    import_files: bool = True
+    overwrite_existing: bool = False
+
+
+class ProjectShareSchema(BaseModel):
+    share_type: str = "read"  # "read", "write", "admin"
+    expires_at: Optional[datetime] = None
+    password_protected: bool = False
+    password: Optional[str] = None
+
+
+# ==================== Token Enhancement Schemas ====================
+
+
+class TokenSuggestionSchema(BaseModel):
+    token: str
+    name: str
+    confidence: float
+    reasoning: str
+    category: str
+
+
+class TokenExampleSchema(BaseModel):
+    title: str
+    description: str
+    code_snippet: str
+    language: str
+    tokens_used: List[str]
+
+
+class TokenCombinationSaveSchema(BaseModel):
+    name: str
+    description: str
+    tokens: List[str]
+    category: Optional[str] = None
+    is_public: bool = False
+
+
+class HealthCheckSchema(BaseModel):
+    status: str
+    environment: str
+    version: str
+    database: str
+    timestamp: datetime
+
+
+class UserPreferencesOutSchema(BaseModel):
+    theme: str
+    language: str
+    timezone: str
+    email_notifications: bool
+    push_notifications: bool
+    notification_frequency: str
+    default_project_type: str
+    default_include_imports: bool
+    favorite_tokens: List[str]
+    ai_assistance_level: str
+    auto_suggest_tokens: bool
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UserPreferencesUpdateSchema(BaseModel):
+    theme: Optional[str] = Field(None, pattern="^(light|dark|auto)$")
+    language: Optional[str] = None
+    timezone: Optional[str] = None
+    email_notifications: Optional[bool] = None
+    push_notifications: Optional[bool] = None
+    notification_frequency: Optional[str] = Field(
+        None, pattern="^(immediate|daily|weekly|never)$"
+    )
+    default_project_type: Optional[str] = None
+    default_include_imports: Optional[bool] = None
+    favorite_tokens: Optional[List[str]] = None
+    ai_assistance_level: Optional[str] = Field(
+        None, pattern="^(minimal|balanced|aggressive)$"
+    )
+    auto_suggest_tokens: Optional[bool] = None
+
+
+class UserActivitySchema(BaseModel):
+    id: int
+    activity_type: str
+    description: str
+    project_id: Optional[int]
+    meta_data: Optional[Dict]  # Changed from metadata
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class NotificationSchema(BaseModel):
+    id: int
+    type: str
+    title: str
+    message: str
+    read: bool
+    meta_data: Optional[Dict[str, Any]] = None  # Changed from metadata
+    project_id: Optional[int] = None
+    generation_id: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ErrorReportSchema(BaseModel):
+    error_type: str
+    message: str
+    stack_trace: Optional[str] = None
+    context: Optional[Dict] = None
+    user_agent: Optional[str] = None
+    url: Optional[str] = None
+
+
+class FeedbackSchema(BaseModel):
+    type: str  # "bug", "feature", "general"
+    message: str
+    rating: Optional[int] = None
+    category: Optional[str] = None
+    meta_data: Optional[Dict] = None  # Changed from metadata

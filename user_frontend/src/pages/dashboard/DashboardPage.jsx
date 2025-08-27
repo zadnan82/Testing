@@ -1,10 +1,15 @@
+// user_frontend/src/pages/dashboard/DashboardPage.jsx
+
 import React, { useState } from 'react';
-import { Code, LogOut, Settings, Zap, Database, Menu, X } from 'lucide-react';
+import { Code, LogOut, Settings, Zap, Database, Menu, X, BarChart3, Files } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
+import NotificationsPanel from '../../components/NotificationsPanel';
 import OverviewTab from './OverviewTab';
 import ProductsTab from './ProductsTab';
 import SettingsTab from './SettingsTab';
+import AnalyticsTab from './AnalyticsTab';
+//import FilesTab from './FilesTab';
 
 const DashboardPage = () => {
   const { user, logout } = useAuth();
@@ -13,7 +18,9 @@ const DashboardPage = () => {
 
   const navigation = [
     { id: 'overview', name: 'Overview', icon: Zap },
-    { id: 'products', name: 'Products', icon: Database },
+    { id: 'analytics', name: 'Analytics', icon: BarChart3 },
+    { id: 'products', name: 'Projects', icon: Database },
+    { id: 'files', name: 'Files', icon: Files },
     { id: 'settings', name: 'Settings', icon: Settings }
   ];
 
@@ -28,6 +35,22 @@ const DashboardPage = () => {
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     setMobileMenuOpen(false); // Close mobile menu when tab is selected
+  };
+
+  // Get user display name - FIXED to match backend schema
+  const getUserDisplayName = () => {
+    if (!user) return 'User';
+    
+    // Backend returns first_name and last_name, not username
+    if (user.first_name && user.last_name) {
+      return `${user.first_name} ${user.last_name}`;
+    } else if (user.first_name) {
+      return user.first_name;
+    } else if (user.email) {
+      return user.email.split('@')[0]; // Use email prefix as fallback
+    } else {
+      return 'User';
+    }
   };
 
   return (
@@ -52,10 +75,15 @@ const DashboardPage = () => {
               <Code className="h-8 w-8 text-blue-600 mr-2" />
               <h1 className="text-xl font-bold text-gray-900">Sevdo</h1>
             </div>
+            
             <div className="flex items-center space-x-4">
+              {/* Notifications */}
+              <NotificationsPanel />
+              
               <span className="text-sm text-gray-700 hidden sm:inline">
-                Welcome, {user?.username || 'User'}
+                Welcome, {getUserDisplayName()}
               </span>
+              
               <Button
                 variant="outline"
                 size="sm"
@@ -170,7 +198,9 @@ const DashboardPage = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         {activeTab === 'overview' && <OverviewTab />}
+        {activeTab === 'analytics' && <AnalyticsTab />}
         {activeTab === 'products' && <ProductsTab />}
+        {/* {activeTab === 'files' && <FilesTab />} */}
         {activeTab === 'settings' && <SettingsTab />}
       </main>
     </div>

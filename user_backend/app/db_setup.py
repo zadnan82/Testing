@@ -1,8 +1,5 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-
-
-from user_backend.app.api.v1.core.models import Base, UserType
 from user_backend.app.settings import settings
 
 # echo = True to see the SQL queries
@@ -12,6 +9,9 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def create_default_user_types():
     """Create default user types if they don't exist"""
+    # Import inside function to avoid circular imports
+    from user_backend.app.api.v1.core.models import UserType
+
     with Session(engine) as session:
         # Check if user types already exist
         existing_types = session.query(UserType).count()
@@ -33,6 +33,9 @@ def create_default_user_types():
 
 def init_db():
     """Initialize database tables and default data"""
+    # Import inside function to avoid circular imports
+    from user_backend.app.api.v1.core.models import Base
+
     # Create all tables
     Base.metadata.create_all(bind=engine)
     print("✅ Database tables created")

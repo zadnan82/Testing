@@ -1,33 +1,7 @@
 // Mock data for development and testing
 
 export const MOCK_USERS = [
-  {
-    id: 1,
-    username: 'admin',
-    email: 'admin@sevdo.com',
-    password: 'admin123',
-    role: 'admin',
-    created_at: '2024-01-01T00:00:00Z',
-    last_login: '2024-01-20T10:30:00Z'
-  },
-  {
-    id: 2,
-    username: 'developer',
-    email: 'dev@sevdo.com',
-    password: 'dev123',
-    role: 'user',
-    created_at: '2024-01-05T08:15:00Z',
-    last_login: '2024-01-19T16:45:00Z'
-  },
-  {
-    id: 3,
-    username: 'demo',
-    email: 'demo@sevdo.com',
-    password: 'demo123',
-    role: 'user',
-    created_at: '2024-01-10T12:00:00Z',
-    last_login: '2024-01-18T09:20:00Z'
-  }
+  
 ];
 
 export const MOCK_PRODUCTS = [

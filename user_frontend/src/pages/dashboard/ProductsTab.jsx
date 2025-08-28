@@ -1,7 +1,4 @@
-// =============================================================================
-// 6. user_frontend/src/pages/dashboard/ProductsTab.jsx (UPDATED)
-// =============================================================================
-
+// src/pages/dashboard/ProductsTab.jsx (UPDATED)
 import React, { useState, useEffect } from 'react';
 import { 
   Database, 
@@ -25,6 +22,7 @@ import Input from '../../components/ui/Input';
 import Card from '../../components/ui/Card';
 import { sevdoService } from '../../services/sevdo.service';
 import { useToast } from '../../components/ui/Toast';
+import { apiClient } from '../../services/api';
 
 const ProductsTab = () => {
   const [projects, setProjects] = useState([]);
@@ -35,81 +33,36 @@ const ProductsTab = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const toast = useToast();
 
-  // Mock projects data (replace with API call)
-  const mockProjects = [
-    {
-      id: 1,
-      name: 'Auth System Pro',
-      description: 'Complete authentication system with JWT tokens and user management',
-      tokens: ['r', 'l', 'm', 'o', 'u'],
-      status: 'completed',
-      created_at: '2024-01-15T10:00:00Z',
-      updated_at: '2024-01-16T14:30:00Z',
-      generations: 3,
-      success_rate: 100,
-      last_generated_at: '2024-01-16T14:30:00Z'
-    },
-    {
-      id: 2,
-      name: 'Session Manager',
-      description: 'Advanced session handling with refresh tokens and multi-device support',
-      tokens: ['t', 'a', 's', 'k'],
-      status: 'in_progress',
-      created_at: '2024-01-18T09:15:00Z',
-      updated_at: '2024-01-19T11:45:00Z',
-      generations: 1,
-      success_rate: 100,
-      last_generated_at: '2024-01-19T11:45:00Z'
-    },
-    {
-      id: 3,
-      name: 'Admin Dashboard',
-      description: 'Full admin panel with user management and analytics',
-      tokens: ['a', 's', 'm', 'u'],
-      status: 'draft',
-      created_at: '2024-01-19T15:30:00Z',
-      updated_at: '2024-01-19T15:30:00Z',
-      generations: 0,
-      success_rate: 0,
-      last_generated_at: null
-    },
-    {
-      id: 4,
-      name: 'Quick Login',
-      description: 'Simple login system for rapid prototyping',
-      tokens: ['l', 'm'],
-      status: 'completed',
-      created_at: '2024-01-20T08:00:00Z',
-      updated_at: '2024-01-20T09:30:00Z',
-      generations: 2,
-      success_rate: 100,
-      last_generated_at: '2024-01-20T09:30:00Z'
-    }
-  ];
-
   useEffect(() => {
     loadProjects();
   }, []);
 
   const loadProjects = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // For demo, use mock data
-      setProjects(mockProjects);
-      
-    } catch (err) {
-      console.error('Failed to load projects:', err);
-      setError(err.message);
-      toast.error('Failed to load projects');
-    } finally {
-      setLoading(false);
+  try {
+    console.log('Loading projects...');
+    setLoading(true);
+    setError(null);
+    
+    // Fetch real projects from the backend API
+    console.log('Making API call...');
+    const response = await apiClient.get('/api/v1/projects');
+    console.log('API response:', response);
+    
+    if (response.success) {
+      setProjects(response.data.projects || response.data);
+    } else {
+      throw new Error(response.message || 'Failed to load projects');
     }
-  };
+    
+  } catch (err) {
+    console.error('Failed to load projects:', err);
+    console.error('Error stack:', err.stack);
+    setError(err.message);
+    toast.error('Failed to load projects');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -142,17 +95,29 @@ const ProductsTab = () => {
       setLoading(true);
       toast.info('Generating code...');
       
+      // Use the project's tokens for generation
       const result = await sevdoService.generateProject(
         project.name,
-        project.tokens,
-        null,
+        project.tokens || [],
+        project.features || [],
         true
       );
       
       if (result.success) {
+        // Update project status after successful generation
+        await apiClient.patch(`/api/v1/projects/${project.id}`, {
+          status: 'completed',
+          last_generated_at: new Date().toISOString()
+        });
+        
         toast.success('Code generated successfully!');
         loadProjects(); // Refresh the list
       } else {
+        // Update project status to failed
+        await apiClient.patch(`/api/v1/projects/${project.id}`, {
+          status: 'failed'
+        });
+        
         toast.error('Code generation failed');
       }
       
@@ -168,20 +133,23 @@ const ProductsTab = () => {
     if (!confirm('Are you sure you want to delete this project?')) return;
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const response = await apiClient.delete(`/api/v1/projects/${projectId}`);
       
-      setProjects(prev => prev.filter(p => p.id !== projectId));
-      toast.success('Project deleted successfully');
+      if (response.success) {
+        setProjects(prev => prev.filter(p => p.id !== projectId));
+        toast.success('Project deleted successfully');
+      } else {
+        throw new Error(response.message || 'Failed to delete project');
+      }
       
     } catch (error) {
-      toast.error('Failed to delete project');
+      toast.error('Failed to delete project: ' + error.message);
     }
   };
 
   const filteredProjects = projects.filter(project => {
     const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         project.description.toLowerCase().includes(searchTerm.toLowerCase());
+                         (project.description && project.description.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -313,7 +281,7 @@ const ProductsTab = () => {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900 mb-1">{project.name}</h3>
-                    <p className="text-sm text-gray-600 line-clamp-2">{project.description}</p>
+                    <p className="text-sm text-gray-600 line-clamp-2">{project.description || 'No description'}</p>
                   </div>
                   <div className="ml-2">
                     <button className="p-1 hover:bg-gray-100 rounded">
@@ -328,30 +296,32 @@ const ProductsTab = () => {
                     <div className="flex items-center space-x-2">
                       {getStatusIcon(project.status)}
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
-                        {project.status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        {project.status?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'}
                       </span>
                     </div>
                     <div className="text-xs text-gray-500">
-                      {project.generations} generations
+                      {project.generation_count || 0} generations
                     </div>
                   </div>
                   
-                  <div>
-                    <div className="text-xs text-gray-500 mb-1">Tokens ({project.tokens.length}):</div>
-                    <div className="flex flex-wrap gap-1">
-                      {project.tokens.map(token => (
-                        <span key={token} className="inline-block px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono">
-                          {token}
-                        </span>
-                      ))}
+                  {project.tokens && project.tokens.length > 0 && (
+                    <div>
+                      <div className="text-xs text-gray-500 mb-1">Tokens ({project.tokens.length}):</div>
+                      <div className="flex flex-wrap gap-1">
+                        {project.tokens.map(token => (
+                          <span key={token} className="inline-block px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono">
+                            {token}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Stats */}
                 <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100">
                   <div className="text-center">
-                    <div className="text-lg font-bold text-gray-900">{project.success_rate}%</div>
+                    <div className="text-lg font-bold text-gray-900">{project.success_rate || 0}%</div>
                     <div className="text-xs text-gray-500">Success Rate</div>
                   </div>
                   <div className="text-center">
@@ -404,16 +374,16 @@ const ProductsTab = () => {
       {showCreateDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <Card className="!p-6 max-w-md w-full">
-            <Card.Header>
-              <Card.Title>Quick Project Creation</Card.Title>
-            </Card.Header>
-            <Card.Content className="space-y-4">
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Quick Project Creation</h3>
+            </div>
+            <div className="space-y-4">
               <p className="text-gray-600">Choose how you want to create your project:</p>
               
               <div className="space-y-3">
                 <Button className="w-full justify-start" onClick={() => {
                   setShowCreateDialog(false);
-                  // Navigate to SEVDO builder - you'll need to implement navigation
+                  // Navigate to SEVDO builder
                   window.location.hash = '#sevdo-builder';
                 }}>
                   <Code className="h-4 w-4 mr-2" />
@@ -451,7 +421,7 @@ const ProductsTab = () => {
                   Cancel
                 </Button>
               </div>
-            </Card.Content>
+            </div>
           </Card>
         </div>
       )}
@@ -472,13 +442,13 @@ const ProductsTab = () => {
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-orange-600">
-              {projects.reduce((sum, p) => sum + p.generations, 0)}
+              {projects.reduce((sum, p) => sum + (p.generation_count || 0), 0)}
             </div>
             <div className="text-sm text-gray-600">Total Generations</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-purple-600">
-              {projects.length > 0 ? Math.round(projects.reduce((sum, p) => sum + p.success_rate, 0) / projects.length) : 0}%
+              {projects.length > 0 ? Math.round(projects.reduce((sum, p) => sum + (p.success_rate || 0), 0) / projects.length) : 0}%
             </div>
             <div className="text-sm text-gray-600">Avg Success Rate</div>
           </div>

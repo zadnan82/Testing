@@ -1,6 +1,4 @@
-// =============================================================================
-// 3. user_frontend/src/pages/projects/HybridBuilderPage.jsx (UPDATED - User Friendly)
-// =============================================================================
+// user_frontend/src/pages/projects/HybridBuilderPage.jsx - UPDATED VERSION
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, MessageSquare, Wand2, Eye, Download, Globe, Send, Sparkles, Code, Check } from 'lucide-react';
@@ -10,6 +8,7 @@ import { sevdoService } from '../../services/sevdo.service';
 import { useToast } from '../../components/ui/Toast';
 import { 
   getTokensFromFeatures, 
+  getDSLFromFeatures, // NEW: Import DSL generation
   USER_FEATURES,
   generateProjectDescription 
 } from '../../utils/featureMapping';
@@ -29,7 +28,7 @@ const HybridBuilderPage = ({ onBack }) => {
   const chatEndRef = useRef(null);
   const toast = useToast();
 
-  // User-friendly feature options (no technical tokens visible)
+  // User-friendly feature options (same as before)
   const quickFeatures = [
     { id: 'user_login', name: 'User Login', icon: '🔐', popular: true, description: 'Secure user authentication' },
     { id: 'user_registration', name: 'User Registration', icon: '👤', popular: true, description: 'New user sign-up' },
@@ -164,6 +163,7 @@ const HybridBuilderPage = ({ onBack }) => {
     };
   };
 
+  // 🚀 UPDATED: Enhanced website building with BOTH backend and frontend
   const handleBuildWebsite = async () => {
     setLoading(true);
     
@@ -172,23 +172,42 @@ const HybridBuilderPage = ({ onBack }) => {
       console.log('🚀 Building website with features:', prompt.features);
       
       if (prompt.features.length > 0) {
-        // Convert user-friendly features to technical tokens (hidden from user)
+        // Convert user-friendly features to technical tokens AND generate DSL
         const tokens = getTokensFromFeatures(prompt.features);
+        const frontendDSL = getDSLFromFeatures(prompt.features);
+        
         console.log('🔧 Converting to tokens:', tokens);
+        console.log('🎨 Generated frontend DSL:', frontendDSL);
         
         const projectName = `AI Generated ${customization.style} Website`;
         const description = generateProjectDescription(prompt.features);
         
-        // Generate using SEVDO service
+        // ✨ ENHANCED: Generate BOTH backend and frontend
         const result = await sevdoService.generateProject(
           projectName,
-          tokens,
-          null, // No frontend DSL for now
+          tokens,          // Backend tokens
+          prompt.features, // Features for frontend generation
           true
         );
         
-        setGeneratedProject({ ...result, prompt, description });
-        toast.success('🎉 Your website has been generated with real working code!');
+        // Add additional info to result
+        result.prompt = prompt;
+        result.description = description;
+        result.tokens = tokens;
+        result.frontendDSL = frontendDSL;
+        
+        setGeneratedProject(result);
+        
+        // Enhanced success messages
+        if (result.backend && result.frontend) {
+          toast.success('🎉 Complete website generated with backend AND frontend code!');
+        } else if (result.backend) {
+          toast.success('✅ Backend generated successfully! Frontend layout created.');
+        } else if (result.frontend) {
+          toast.success('✅ Frontend generated successfully!');
+        } else {
+          toast.info('Website structure created! Some features may need additional setup.');
+        }
         
       } else if (prompt.customRequests) {
         // Use AI generation for custom descriptions
@@ -197,8 +216,14 @@ const HybridBuilderPage = ({ onBack }) => {
           'WEB_APP'
         );
         
-        setGeneratedProject({ ...result, prompt });
-        toast.success('🎉 Your custom website has been generated!');
+        result.prompt = prompt;
+        setGeneratedProject(result);
+        
+        if (result.backend && result.frontend) {
+          toast.success('🎉 Custom website generated with complete code!');
+        } else {
+          toast.success('✅ Custom website generated!');
+        }
         
       } else {
         // Fallback - create layout only
@@ -206,7 +231,9 @@ const HybridBuilderPage = ({ onBack }) => {
         setGeneratedProject({ 
           mockGeneration: true, 
           prompt,
-          message: 'Website layout created! Add features to generate backend code.'
+          message: 'Website layout created! Add features to generate working code.',
+          backend: null,
+          frontend: null
         });
         toast.info('Website layout created! Select features to generate working code.');
       }
@@ -220,7 +247,9 @@ const HybridBuilderPage = ({ onBack }) => {
       setGeneratedProject({ 
         error: true, 
         message: error.message,
-        prompt: buildProjectPrompt()
+        prompt: buildProjectPrompt(),
+        backend: null,
+        frontend: null
       });
       setStage('preview');
     } finally {
@@ -236,6 +265,7 @@ const HybridBuilderPage = ({ onBack }) => {
     return <WebsitePreviewPage onBack={() => setStage('input')} generatedProject={generatedProject} />;
   }
 
+  // 🎨 FRONTEND JSX (same as before, but now it will generate both backend and frontend!)
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-6xl mx-auto">
@@ -255,13 +285,13 @@ const HybridBuilderPage = ({ onBack }) => {
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">🤖 AI Website Builder</h1>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              Tell our AI what you want or choose from popular features. We'll build you a complete website with working code!
+              Tell our AI what you want or choose from popular features. We'll build you a complete website with working backend AND frontend code!
             </p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Features & Chat */}
+          {/* Left Column - Features & Chat (same as before) */}
           <div className="lg:col-span-2 space-y-6">
             {/* Quick Features */}
             <Card>
@@ -318,7 +348,7 @@ const HybridBuilderPage = ({ onBack }) => {
               </Card.Content>
             </Card>
 
-            {/* Chat Interface */}
+            {/* Chat Interface (same as before) */}
             <Card>
               <Card.Header>
                 <Card.Title>💬 Chat with AI</Card.Title>
@@ -394,7 +424,7 @@ const HybridBuilderPage = ({ onBack }) => {
 
           {/* Right Column - Customization & Build */}
           <div className="space-y-6">
-            {/* Customization */}
+            {/* Customization (same as before) */}
             <Card>
               <Card.Header>
                 <Card.Title>🎨 Style Options</Card.Title>
@@ -438,7 +468,7 @@ const HybridBuilderPage = ({ onBack }) => {
               </Card.Content>
             </Card>
 
-            {/* Build Button */}
+            {/* Build Button - ENHANCED */}
             <Card>
               <Card.Content className="space-y-3">
                 <Button
@@ -449,29 +479,32 @@ const HybridBuilderPage = ({ onBack }) => {
                   size="lg"
                 >
                   <Sparkles className="h-5 w-5 mr-2" />
-                  {loading ? 'Building Your Website...' : '🚀 Build My Website'}
+                  {loading ? 'Building Complete Website...' : '🚀 Build Full Website'}
                 </Button>
 
-                {/* Progress Indicator */}
+                {/* Enhanced Progress Indicator */}
                 {loading && (
                   <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg border">
                     <div className="text-sm text-blue-900 mb-2 flex items-center">
                       <Code className="h-4 w-4 animate-pulse mr-2" />
-                      AI is building your website with real code...
+                      AI is building backend + frontend code...
                     </div>
                     <div className="w-full bg-blue-200 rounded-full h-2">
                       <div className="bg-gradient-to-r from-blue-600 to-purple-600 h-2 rounded-full animate-pulse" style={{width: '70%'}}></div>
+                    </div>
+                    <div className="text-xs text-blue-700 mt-2">
+                      ✨ Generating Python API + React components
                     </div>
                   </div>
                 )}
               </Card.Content>
             </Card>
 
-            {/* Project Summary */}
+            {/* Enhanced Project Summary */}
             {(selectedFeatures.length > 0 || chatMessages.some(m => m.type === 'user')) && (
               <Card>
                 <Card.Header>
-                  <Card.Title>📋 What We're Building</Card.Title>
+                  <Card.Title>📋 Complete Website Package</Card.Title>
                 </Card.Header>
                 <Card.Content>
                   <div className="space-y-3 text-sm">
@@ -503,12 +536,12 @@ const HybridBuilderPage = ({ onBack }) => {
                     )}
 
                     <div className="pt-3 border-t bg-green-50 -mx-3 px-3 py-2 rounded">
-                      <div className="font-medium text-green-800">You'll Get:</div>
+                      <div className="font-medium text-green-800">Complete Package:</div>
                       <div className="text-green-700 text-xs mt-1">
-                        ✅ Complete working website<br/>
-                        ✅ Backend API with database<br/>
-                        ✅ User authentication system<br/>
-                        ✅ Admin panel & management<br/>
+                        ✅ Backend API (Python/FastAPI)<br/>
+                        ✅ Frontend UI (React/JSX)<br/>
+                        ✅ Database models & authentication<br/>
+                        ✅ Admin panel & user management<br/>
                         ✅ Production-ready code
                       </div>
                     </div>
@@ -523,7 +556,7 @@ const HybridBuilderPage = ({ onBack }) => {
   );
 };
 
-// Website Preview Component - Updated
+// 🎨 UPDATED: Enhanced Website Preview Component
 const WebsitePreviewPage = ({ onBack, generatedProject }) => {
   const toast = useToast();
 
@@ -549,36 +582,169 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
     toast.success('Code downloaded!');
   };
 
+  // Check what was actually generated
+  const hasBackend = generatedProject?.backend?.success || generatedProject?.backend?.code;
+  const hasFrontend = generatedProject?.frontend?.success || generatedProject?.frontend?.code;
+  const hasErrors = generatedProject?.errors?.length > 0;
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
+        {/* Enhanced Header */}
         <div className="mb-8 text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-            <Sparkles className="h-8 w-8 text-green-600" />
+          <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${
+            generatedProject?.error ? 'bg-orange-100' : 
+            hasBackend && hasFrontend ? 'bg-green-100' :
+            hasBackend || hasFrontend ? 'bg-blue-100' : 'bg-gray-100'
+          }`}>
+            <Sparkles className={`h-8 w-8 ${
+              generatedProject?.error ? 'text-orange-600' :
+              hasBackend && hasFrontend ? 'text-green-600' :
+              hasBackend || hasFrontend ? 'text-blue-600' : 'text-gray-600'
+            }`} />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {generatedProject?.error ? '⚠️ Almost There!' : '🎉 Your Website is Complete!'}
+            {generatedProject?.error ? '⚠️ Partial Generation' : 
+             hasBackend && hasFrontend ? '🎉 Complete Website Ready!' :
+             hasBackend ? '✅ Backend Generated!' :
+             hasFrontend ? '🎨 Frontend Generated!' : '📋 Layout Created'}
           </h1>
           <p className="text-gray-600">
             {generatedProject?.error 
-              ? 'We created your website layout - select features to add working backend code'
-              : generatedProject?.mockGeneration
-                ? 'Website layout created! Add features with backend code for full functionality'
-                : 'Your complete website with working backend code is ready to deploy'
+              ? 'Some components generated with issues'
+              : hasBackend && hasFrontend
+                ? 'Your complete website with backend API and frontend UI is ready!'
+                : hasBackend
+                  ? 'Backend API generated successfully - frontend layout created'
+                  : hasFrontend
+                    ? 'Frontend components generated successfully'
+                    : 'Website layout created - add features for complete functionality'
             }
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Website Preview */}
-          <div className="lg:col-span-2">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* Code Display - ENHANCED */}
+          <div className="xl:col-span-2 space-y-6">
+            {/* Backend Code Display */}
+            {hasBackend && (
+              <Card>
+                <Card.Header>
+                  <div className="flex justify-between items-center">
+                    <Card.Title className="flex items-center">
+                      <Code className="h-5 w-5 mr-2" />
+                      🐍 Backend Code (Python/FastAPI)
+                    </Card.Title>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(generatedProject.backend?.code)}
+                      >
+                        Copy Backend
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => downloadCode(
+                          generatedProject.backend?.code,
+                          'backend_api.py'
+                        )}
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        Download
+                      </Button>
+                    </div>
+                  </div>
+                </Card.Header>
+                <Card.Content>
+                  <pre className="bg-gray-900 text-green-400 p-4 rounded-lg overflow-auto max-h-64 text-sm">
+                    {generatedProject.backend?.code || 'Backend generation failed'}
+                  </pre>
+                  
+                  <div className="mt-4 text-sm text-gray-600">
+                    <p>✅ FastAPI backend with authentication</p>
+                    <p>✅ Database models and migrations</p>
+                    <p>✅ RESTful API endpoints</p>
+                    <p>✅ JWT token management</p>
+                  </div>
+                </Card.Content>
+              </Card>
+            )}
+
+            {/* Frontend Code Display */}
+            {hasFrontend && (
+              <Card>
+                <Card.Header>
+                  <div className="flex justify-between items-center">
+                    <Card.Title className="flex items-center">
+                      <Code className="h-5 w-5 mr-2" />
+                      ⚛️ Frontend Code (React/JSX)
+                    </Card.Title>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(generatedProject.frontend?.code)}
+                      >
+                        Copy Frontend
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => downloadCode(
+                          generatedProject.frontend?.code,
+                          'frontend_components.jsx'
+                        )}
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        Download
+                      </Button>
+                    </div>
+                  </div>
+                </Card.Header>
+                <Card.Content>
+                  <pre className="bg-gray-900 text-blue-400 p-4 rounded-lg overflow-auto max-h-64 text-sm">
+                    {generatedProject.frontend?.code || 'Frontend generation failed'}
+                  </pre>
+                  
+                  <div className="mt-4 text-sm text-gray-600">
+                    <p>✅ React components with Tailwind CSS</p>
+                    <p>✅ Responsive design</p>
+                    <p>✅ Form validation</p>
+                    <p>✅ Interactive UI elements</p>
+                  </div>
+                </Card.Content>
+              </Card>
+            )}
+
+            {/* Error Display */}
+            {hasErrors && (
+              <Card>
+                <Card.Header>
+                  <Card.Title className="flex items-center text-orange-600">
+                    <AlertCircle className="h-5 w-5 mr-2" />
+                    Generation Issues
+                  </Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <div className="space-y-2">
+                    {generatedProject.errors.map((error, index) => (
+                      <div key={index} className="p-3 bg-orange-50 border border-orange-200 rounded text-sm text-orange-700">
+                        {error}
+                      </div>
+                    ))}
+                  </div>
+                </Card.Content>
+              </Card>
+            )}
+
+            {/* Website Preview Mockup */}
             <Card>
               <Card.Header>
                 <Card.Title>🖥️ Website Preview</Card.Title>
               </Card.Header>
               <Card.Content>
-                {/* Mockup Browser Window */}
                 <div className="bg-white border rounded-lg p-6 min-h-96">
                   <div className="border-b pb-4 mb-4">
                     <div className="flex items-center space-x-2 mb-2">
@@ -603,49 +769,73 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
                       </h1>
                       <p className="text-gray-600">
                         {generatedProject?.description || 'Your professional website is ready to go live!'}
-                        {generatedProject?.success && !generatedProject?.mockGeneration && (
-                          <span className="text-green-600 font-medium"> ✨ Powered by real backend code!</span>
+                        {hasBackend && hasFrontend && (
+                          <span className="text-green-600 font-medium"> ✨ Complete with working backend!</span>
                         )}
                       </p>
                     </div>
                     
-                    {/* Feature Previews */}
-                    {generatedProject?.prompt?.features?.includes('Contact Form') && (
+                    {/* Dynamic Feature Previews */}
+                    {generatedProject?.prompt?.features?.includes('user_login') && (
                       <div className="bg-gray-50 p-4 rounded border">
-                        <h3 className="font-medium mb-3">Contact Form</h3>
+                        <h3 className="font-medium mb-3">🔐 User Authentication</h3>
+                        <div className="space-y-2 max-w-xs">
+                          <div className="h-8 bg-white border rounded"></div>
+                          <div className="h-8 bg-white border rounded"></div>
+                          <Button size="sm">Sign In</Button>
+                        </div>
+                        {hasBackend && (
+                          <p className="text-xs text-green-600 mt-2">✓ Working backend API generated!</p>
+                        )}
+                      </div>
+                    )}
+                    
+                    {generatedProject?.prompt?.features?.includes('contact_form') && (
+                      <div className="bg-gray-50 p-4 rounded border">
+                        <h3 className="font-medium mb-3">📧 Contact Form</h3>
                         <div className="grid grid-cols-2 gap-3">
                           <div className="h-8 bg-white border rounded"></div>
                           <div className="h-8 bg-white border rounded"></div>
                           <div className="col-span-2 h-20 bg-white border rounded"></div>
                           <Button size="sm" className="w-fit">Send Message</Button>
                         </div>
-                      </div>
-                    )}
-                    
-                    {generatedProject?.prompt?.features?.includes('Login System') && (
-                      <div className="bg-gray-50 p-4 rounded border">
-                        <h3 className="font-medium mb-3">User Authentication</h3>
-                        <div className="space-y-2 max-w-xs">
-                          <div className="h-8 bg-white border rounded"></div>
-                          <div className="h-8 bg-white border rounded"></div>
-                          <Button size="sm">Sign In</Button>
-                        </div>
-                        {generatedProject?.success && (
-                          <p className="text-xs text-green-600 mt-2">✓ Real backend API generated with SEVDO!</p>
+                        {hasFrontend && (
+                          <p className="text-xs text-blue-600 mt-2">✓ React form component generated!</p>
                         )}
                       </div>
                     )}
 
-                    {generatedProject?.prompt?.features?.includes('Admin Dashboard') && (
+                    {generatedProject?.prompt?.features?.includes('admin_panel') && (
                       <div className="bg-gray-50 p-4 rounded border">
-                        <h3 className="font-medium mb-3">Admin Dashboard</h3>
+                        <h3 className="font-medium mb-3">📊 Admin Dashboard</h3>
                         <div className="grid grid-cols-3 gap-2 mb-3">
                           <div className="h-12 bg-white border rounded flex items-center justify-center text-xs">Users</div>
                           <div className="h-12 bg-white border rounded flex items-center justify-center text-xs">Analytics</div>
                           <div className="h-12 bg-white border rounded flex items-center justify-center text-xs">Settings</div>
                         </div>
-                        {generatedProject?.success && (
-                          <p className="text-xs text-green-600">✓ Full admin backend with SEVDO tokens!</p>
+                        {hasBackend && (
+                          <p className="text-xs text-green-600">✓ Complete admin API generated!</p>
+                        )}
+                      </div>
+                    )}
+
+                    {generatedProject?.prompt?.features?.includes('shopping_cart') && (
+                      <div className="bg-gray-50 p-4 rounded border">
+                        <h3 className="font-medium mb-3">🛒 E-commerce</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="h-24 bg-white border rounded p-2">
+                            <div className="w-full h-12 bg-gray-200 rounded mb-2"></div>
+                            <div className="text-xs">Product Name</div>
+                            <div className="text-xs font-bold">$29.99</div>
+                          </div>
+                          <div className="h-24 bg-white border rounded p-2">
+                            <div className="w-full h-12 bg-gray-200 rounded mb-2"></div>
+                            <div className="text-xs">Another Product</div>
+                            <div className="text-xs font-bold">$39.99</div>
+                          </div>
+                        </div>
+                        {hasBackend && hasFrontend && (
+                          <p className="text-xs text-purple-600 mt-2">✓ Full e-commerce system generated!</p>
                         )}
                       </div>
                     )}
@@ -653,204 +843,228 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
                 </div>
               </Card.Content>
             </Card>
-
-            {/* Generated Code Display */}
-            {generatedProject && !generatedProject.error && !generatedProject.mockGeneration && (
-              <Card className="mt-6">
-                <Card.Header>
-                  <div className="flex justify-between items-center">
-                    <Card.Title className="flex items-center">
-                      <Code className="h-5 w-5 mr-2" />
-                      Generated Backend Code
-                    </Card.Title>
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => copyToClipboard(generatedProject.backend?.code || generatedProject.code)}
-                      >
-                        <Download className="h-4 w-4 mr-1" />
-                        Copy Code
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => downloadCode(
-                          generatedProject.backend?.code || generatedProject.code,
-                          'generated_backend.py'
-                        )}
-                      >
-                        <Download className="h-4 w-4 mr-1" />
-                        Download
-                      </Button>
-                    </div>
-                  </div>
-                </Card.Header>
-                <Card.Content>
-                  <pre className="bg-gray-900 text-green-400 p-4 rounded-lg overflow-auto max-h-64 text-sm">
-                    {generatedProject.backend?.code || generatedProject.code || 'No code generated'}
-                  </pre>
-                  
-                  <div className="mt-4 text-sm text-gray-600">
-                    <p>✅ Generated with SEVDO token system</p>
-                    <p>✅ Production-ready FastAPI backend</p>
-                    <p>✅ Complete with authentication and database models</p>
-                  </div>
-                </Card.Content>
-              </Card>
-            )}
           </div>
 
-          {/* Actions & Details */}
+          {/* Right Column - Enhanced Status & Actions */}
           <div className="space-y-6">
-            {/* Status Card */}
+            {/* Generation Status */}
             <Card>
               <Card.Header>
                 <Card.Title>
                   {generatedProject?.error ? '⚠️ Generation Status' : 
-                   generatedProject?.mockGeneration ? '📋 Layout Created' : 
-                   '✨ What\'s Included'}
+                   hasBackend && hasFrontend ? '🎉 Complete Success' :
+                   hasBackend ? '✅ Backend Ready' :
+                   hasFrontend ? '🎨 Frontend Ready' : '📋 Layout Created'}
                 </Card.Title>
               </Card.Header>
               <Card.Content>
-                {generatedProject?.error ? (
-                  <div className="space-y-2 text-sm">
-                    <div className="text-red-600">❌ Code generation failed</div>
-                    <div className="text-gray-600">Error: {generatedProject.message}</div>
-                    <div className="text-blue-600">✓ Website layout still created</div>
+                <div className="space-y-3 text-sm">
+                  {/* Backend Status */}
+                  <div className="flex items-center justify-between">
+                    <span>Backend API</span>
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      hasBackend ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {hasBackend ? '✓ Generated' : '- Skipped'}
+                    </span>
                   </div>
-                ) : generatedProject?.mockGeneration ? (
-                  <div className="space-y-2 text-sm">
-                    <div className="text-blue-600">✓ Website layout designed</div>
-                    <div className="text-orange-600">⚡ Add features with tokens for real backend code</div>
-                    <div className="text-gray-600">✓ Responsive design included</div>
+                  
+                  {/* Frontend Status */}
+                  <div className="flex items-center justify-between">
+                    <span>Frontend UI</span>
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      hasFrontend ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {hasFrontend ? '✓ Generated' : '- Layout Only'}
+                    </span>
                   </div>
-                ) : (
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center">
-                      <span className="text-green-500 mr-2">✓</span>
-                      {generatedProject?.prompt?.pages || 5} HTML pages
+                  
+                  {/* Database Status */}
+                  <div className="flex items-center justify-between">
+                    <span>Database Models</span>
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      hasBackend ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {hasBackend ? '✓ Included' : '- Not needed'}
+                    </span>
+                  </div>
+                  
+                  {/* Authentication Status */}
+                  <div className="flex items-center justify-between">
+                    <span>Authentication</span>
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      (generatedProject?.prompt?.features?.includes('user_login') && hasBackend)
+                        ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {(generatedProject?.prompt?.features?.includes('user_login') && hasBackend)
+                        ? '✓ JWT Ready' : '- Not included'}
+                    </span>
+                  </div>
+                </div>
+                
+                {hasErrors && (
+                  <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded">
+                    <div className="text-sm font-medium text-orange-800">Issues Found:</div>
+                    <div className="text-xs text-orange-700 mt-1">
+                      {generatedProject.errors.length} component(s) had generation issues
                     </div>
-                    <div className="flex items-center">
-                      <span className="text-green-500 mr-2">✓</span>
-                      Responsive CSS styling
-                    </div>
-                    <div className="flex items-center">
-                      <span className="text-green-500 mr-2">✓</span>
-                      JavaScript functionality
-                    </div>
-                    <div className="flex items-center">
-                      <span className="text-green-500 mr-2">✓</span>
-                      Mobile-friendly design
-                    </div>
-                    <div className="flex items-center">
-                      <span className="text-green-500 mr-2">✓</span>
-                      Real backend API with SEVDO
-                    </div>
-                    {generatedProject?.prompt?.features?.map(feature => (
-                      <div key={feature} className="flex items-center">
-                        <span className="text-green-500 mr-2">✓</span>
-                        {feature}
-                      </div>
-                    ))}
                   </div>
                 )}
               </Card.Content>
             </Card>
 
-            {/* Download Options */}
-            {!generatedProject?.error && (
-              <Card>
-                <Card.Header>
-                  <Card.Title>📦 Download & Deploy</Card.Title>
-                </Card.Header>
-                <Card.Content className="space-y-3">
-                  {generatedProject && !generatedProject.mockGeneration && (
-                    <>
-                      <Button 
-                        className="w-full" 
-                        onClick={() => downloadCode(
-                          generatedProject.backend?.code || generatedProject.code,
-                          'complete_website.py'
-                        )}
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Download Backend Code
-                      </Button>
-                      <Button className="w-full" variant="outline">
-                        📄 Download Frontend
-                      </Button>
-                      <Button className="w-full" variant="outline">
-                        📦 Complete Project ZIP
-                      </Button>
-                    </>
-                  )}
-                  
-                  {generatedProject?.mockGeneration && (
-                    <Button className="w-full" variant="outline" disabled>
-                      <Download className="h-4 w-4 mr-2" />
-                      Select features for code download
-                    </Button>
-                  )}
-                </Card.Content>
-              </Card>
-            )}
+            {/* Download Actions */}
+            <Card>
+              <Card.Header>
+                <Card.Title>📦 Download Options</Card.Title>
+              </Card.Header>
+              <Card.Content className="space-y-3">
+                {hasBackend && (
+                  <Button 
+                    className="w-full" 
+                    onClick={() => downloadCode(
+                      generatedProject.backend?.code,
+                      'backend_api.py'
+                    )}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Backend (Python)
+                  </Button>
+                )}
+                
+                {hasFrontend && (
+                  <Button 
+                    className="w-full" 
+                    variant="outline"
+                    onClick={() => downloadCode(
+                      generatedProject.frontend?.code,
+                      'frontend_components.jsx'
+                    )}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Frontend (React)
+                  </Button>
+                )}
+                
+                {hasBackend && hasFrontend && (
+                  <Button className="w-full" variant="outline">
+                    📦 Download Complete Project
+                  </Button>
+                )}
+                
+                {!hasBackend && !hasFrontend && (
+                  <Button className="w-full" variant="outline" disabled>
+                    <Download className="h-4 w-4 mr-2" />
+                    Select features for code download
+                  </Button>
+                )}
+              </Card.Content>
+            </Card>
 
             {/* Deploy Options */}
             <Card>
               <Card.Header>
-                <Card.Title>🚀 Deploy Options</Card.Title>
+                <Card.Title>🚀 Deploy & Share</Card.Title>
               </Card.Header>
               <Card.Content className="space-y-3">
-                <Button className="w-full" disabled={generatedProject?.error || generatedProject?.mockGeneration}>
+                <Button 
+                  className="w-full" 
+                  disabled={!hasBackend && !hasFrontend}
+                >
                   <Globe className="h-4 w-4 mr-2" />
                   Deploy to Cloud
                 </Button>
-                <Button className="w-full" variant="outline" disabled={generatedProject?.mockGeneration}>
-                  📤 Deploy to Vercel
+                <Button 
+                  className="w-full" 
+                  variant="outline" 
+                  disabled={!hasFrontend}
+                >
+                  ▲ Deploy to Vercel
                 </Button>
-                <Button className="w-full" variant="outline">
-                  ☁️ Upload to Your Server
+                <Button 
+                  className="w-full" 
+                  variant="outline"
+                  disabled={!hasBackend}
+                >
+                  🐳 Docker Container
                 </Button>
-              </Card.Content>
-            </Card>
-
-            {/* Build Info */}
-            <Card>
-              <Card.Content>
-                <div className="text-center text-sm text-gray-600 space-y-2">
-                  <div>⏱️ Total build time: {generatedProject?.error ? 'Failed' : '2 min 34 sec'}</div>
-                  {generatedProject && !generatedProject.error && !generatedProject.mockGeneration && (
-                    <div>🎯 Generated with real SEVDO backend</div>
-                  )}
-                  {generatedProject?.mockGeneration && (
-                    <div>💡 Add login/admin features for backend code</div>
-                  )}
-                  <div>🚀 Built with Sevdo AI + SEVDO</div>
-                </div>
               </Card.Content>
             </Card>
 
             {/* Technical Details */}
-            {generatedProject && !generatedProject.mockGeneration && !generatedProject.error && (
+            {(hasBackend || hasFrontend) && (
               <Card>
                 <Card.Header>
-                  <Card.Title>🔧 Technical Details</Card.Title>
+                  <Card.Title>🔧 Technical Stack</Card.Title>
                 </Card.Header>
                 <Card.Content>
                   <div className="space-y-2 text-xs">
-                    <div><strong>Backend:</strong> FastAPI with Python</div>
-                    <div><strong>Database:</strong> SQLAlchemy ORM</div>
-                    <div><strong>Authentication:</strong> JWT tokens</div>
-                    <div><strong>Generated Tokens:</strong></div>
-                    <div className="pl-2">
-                      {generatedProject.prompt?.tokens?.map(token => (
-                        <span key={token} className="inline-block bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-xs font-mono mr-1 mb-1">
-                          {token}
-                        </span>
-                      ))}
+                    {hasBackend && (
+                      <>
+                        <div><strong>Backend:</strong> FastAPI + Python</div>
+                        <div><strong>Database:</strong> SQLAlchemy ORM</div>
+                        <div><strong>Auth:</strong> JWT Tokens</div>
+                      </>
+                    )}
+                    {hasFrontend && (
+                      <>
+                        <div><strong>Frontend:</strong> React + JSX</div>
+                        <div><strong>Styling:</strong> Tailwind CSS</div>
+                        <div><strong>Components:</strong> SEVDO DSL</div>
+                      </>
+                    )}
+                    
+                    {generatedProject?.tokens && (
+                      <div>
+                        <strong>Generated Tokens:</strong>
+                        <div className="mt-1">
+                          {generatedProject.tokens.map(token => (
+                            <span key={token} className="inline-block bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-xs font-mono mr-1 mb-1">
+                              {token}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div><strong>Status:</strong> 
+                      <span className={hasBackend && hasFrontend ? 'text-green-600' : 'text-blue-600'}>
+                        {hasBackend && hasFrontend ? ' Production Ready ✓' : ' Partially Complete ⚡'}
+                      </span>
                     </div>
-                    <div><strong>Status:</strong> <span className="text-green-600">Production Ready ✓</span></div>
+                  </div>
+                </Card.Content>
+              </Card>
+            )}
+
+            {/* Instructions */}
+            {(hasBackend || hasFrontend) && (
+              <Card>
+                <Card.Header>
+                  <Card.Title>📚 Next Steps</Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <div className="space-y-2 text-xs text-gray-600">
+                    {hasBackend && (
+                      <>
+                        <div>1. Install Python dependencies:</div>
+                        <code className="block bg-gray-100 p-2 rounded text-xs">pip install fastapi uvicorn sqlalchemy</code>
+                        <div>2. Run the backend:</div>
+                        <code className="block bg-gray-100 p-2 rounded text-xs">uvicorn main:app --reload</code>
+                      </>
+                    )}
+                    {hasFrontend && (
+                      <>
+                        <div>3. Set up React environment:</div>
+                        <code className="block bg-gray-100 p-2 rounded text-xs">npx create-react-app my-app</code>
+                        <div>4. Add Tailwind CSS for styling</div>
+                      </>
+                    )}
+                    {hasBackend && hasFrontend && (
+                      <div className="mt-3 p-2 bg-blue-50 rounded text-blue-700">
+                        🎉 You have a complete full-stack application!
+                      </div>
+                    )}
                   </div>
                 </Card.Content>
               </Card>

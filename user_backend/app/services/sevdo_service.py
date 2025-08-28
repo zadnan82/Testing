@@ -1,4 +1,5 @@
-# user_backend/app/services/sevdo_service.py
+# user_backend/app/services/sevdo_service.py - UPDATED VERSION
+
 import httpx
 import tempfile
 import os
@@ -28,7 +29,7 @@ class SevdoIntegrationService:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{self.sevdo_backend_url}/api/translate/to-s-direct",  # Use new endpoint
+                    f"{self.sevdo_backend_url}/api/translate/to-s-direct",  # Use direct endpoint
                     json={
                         "tokens": tokens,  # Send tokens directly
                         "include_imports": include_imports,
@@ -46,6 +47,7 @@ class SevdoIntegrationService:
                     "metadata": result,
                 }
         except Exception as e:
+            logger.error(f"Backend generation failed: {str(e)}")
             return {"success": False, "error": str(e)}
 
     async def generate_frontend_code(
@@ -54,51 +56,47 @@ class SevdoIntegrationService:
         include_imports: bool = True,
         component_name: str = "GeneratedComponent",
     ) -> Dict[str, Any]:
-        """Generate frontend code using SEVDO frontend service"""
+        """Generate frontend code using SEVDO frontend service - UPDATED"""
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            input_file = Path(temp_dir) / "input.txt"
-            output_file = Path(temp_dir) / "output.jsx"
-
-            # Write DSL content to input file
-            input_file.write_text(dsl_content)
-
+        try:
             async with httpx.AsyncClient() as client:
-                try:
-                    response = await client.post(
-                        f"{self.sevdo_frontend_url}/api/fe-translate/to-s",
-                        json={
-                            "input_path": str(input_file),
-                            "output_path": str(output_file),
-                            "include_imports": include_imports,
-                            "component_name": component_name,
-                            "use_cache": True,
-                        },
-                        timeout=self.timeout,
-                    )
-                    response.raise_for_status()
+                # 🚀 NEW: Use direct DSL endpoint (no files needed)
+                logger.info(f"Generating frontend with DSL: {dsl_content[:100]}...")
 
-                    if output_file.exists():
-                        generated_code = output_file.read_text()
+                response = await client.post(
+                    f"{self.sevdo_frontend_url}/api/fe-translate/to-s-direct",
+                    json={
+                        "dsl_content": dsl_content,
+                        "include_imports": include_imports,
+                        "component_name": component_name,
+                        "use_cache": True,
+                    },
+                    timeout=self.timeout,
+                )
+                response.raise_for_status()
 
-                        return {
-                            "success": True,
-                            "code": generated_code,
-                            "component_name": component_name,
-                            "metadata": response.json(),
-                        }
-                    else:
-                        raise Exception("Generated file not found")
+                result = response.json()
 
-                except httpx.RequestError as e:
-                    logger.error(f"SEVDO frontend request failed: {str(e)}")
+                if result.get("success"):
+                    logger.info("✅ Frontend generated successfully")
                     return {
-                        "success": False,
-                        "error": f"Frontend service error: {str(e)}",
+                        "success": True,
+                        "code": result["code"],
+                        "component_name": component_name,
+                        "metadata": result,
                     }
-                except Exception as e:
-                    logger.error(f"Frontend generation failed: {str(e)}")
-                    return {"success": False, "error": str(e)}
+                else:
+                    raise Exception(f"Frontend service returned error: {result}")
+
+        except httpx.RequestError as e:
+            logger.error(f"SEVDO frontend request failed: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Frontend service error: {str(e)}",
+            }
+        except Exception as e:
+            logger.error(f"Frontend generation failed: {str(e)}")
+            return {"success": False, "error": str(e)}
 
     async def generate_full_project(
         self,
@@ -114,26 +112,48 @@ class SevdoIntegrationService:
             "backend": None,
             "frontend": None,
             "success": False,
+            "errors": [],
         }
 
         # Generate backend code
+        logger.info(f"🔧 Generating backend for project: {project_name}")
         backend_result = await self.generate_backend_code(
             backend_tokens, include_imports
         )
         results["backend"] = backend_result
 
+        if not backend_result.get("success"):
+            results["errors"].append(
+                f"Backend: {backend_result.get('error', 'Unknown error')}"
+            )
+
         # Generate frontend code if DSL provided
-        if frontend_dsl:
+        if frontend_dsl and frontend_dsl.strip():
+            logger.info(f"🎨 Generating frontend for project: {project_name}")
             frontend_result = await self.generate_frontend_code(
-                frontend_dsl, include_imports, f"{project_name}Component"
+                frontend_dsl,
+                include_imports,
+                f"{project_name.replace(' ', '')}Component",
             )
             results["frontend"] = frontend_result
 
+            if not frontend_result.get("success"):
+                results["errors"].append(
+                    f"Frontend: {frontend_result.get('error', 'Unknown error')}"
+                )
+        else:
+            logger.info("⚠️ No frontend DSL provided, skipping frontend generation")
+
         # Determine overall success
-        results["success"] = backend_result.get("success", False)
-        if frontend_dsl:
-            results["success"] = results["success"] and results["frontend"].get(
-                "success", False
+        results["success"] = (
+            results["backend"] and results["backend"].get("success", False)
+        ) or (results["frontend"] and results["frontend"].get("success", False))
+
+        if results["success"]:
+            logger.info(f"🎉 Project {project_name} generated successfully!")
+        else:
+            logger.warning(
+                f"⚠️ Project {project_name} completed with errors: {results['errors']}"
             )
 
         return results

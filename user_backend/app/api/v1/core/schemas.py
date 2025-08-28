@@ -570,16 +570,20 @@ class ProjectCreateSchema(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
     project_type: ProjectType = ProjectType.WEB_APP
-    tokens: List[str] = Field(default=[], description="List of tokens to use")
+    features: List[str] = Field(default=[], description="List of feature names")
     config: Dict[str, Any] = Field(default={})
     working_directory: Optional[str] = None
     include_imports: bool = True
 
-    @validator("tokens")
-    def validate_tokens(cls, v):
-        if not isinstance(v, list):
-            raise ValueError("Tokens must be a list")
-        return [token.strip().lower() for token in v if token.strip()]
+
+class ProjectFeatureSchema(BaseModel):
+    """User-friendly feature representation"""
+
+    name: str
+    description: str
+    category: str
+    complexity: str
+    icon: Optional[str] = None
 
 
 class ProjectUpdateSchema(BaseModel):
@@ -719,7 +723,7 @@ class AIChatMessageSchema(BaseModel):
 class AIChatResponseSchema(BaseModel):
     response: str
     suggestions: List[str] = []
-    suggested_tokens: List[str] = []
+    suggested_features: List[str] = []
     conversation_id: int
 
 

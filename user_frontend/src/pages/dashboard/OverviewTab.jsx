@@ -11,12 +11,14 @@ import {
   TrendingUp, 
   Clock,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import CreateProjectPage from '../projects/CreateProjectPage';
 import HybridBuilderPage from '../projects/HybridBuilderPage';
+import SevdoBuilderPage from '../projects/SevdoBuilderPage'; // NEW
 import { analyticsService } from '../../services/analytics.service';
 import { useToast } from '../../components/ui/Toast';
 
@@ -60,14 +62,17 @@ const OverviewTab = () => {
     }
   };
 
-  // Show Create Project Page
+  // Show different views
   if (activeView === 'create-project') {
     return <CreateProjectPage onBack={() => setActiveView('dashboard')} />;
   }
 
-  // Show Hybrid Builder Page
   if (activeView === 'hybrid-builder') {
     return <HybridBuilderPage onBack={() => setActiveView('dashboard')} />;
+  }
+
+  if (activeView === 'sevdo-builder') {
+    return <SevdoBuilderPage onBack={() => setActiveView('dashboard')} />;
   }
 
   // Loading state
@@ -198,23 +203,34 @@ const OverviewTab = () => {
         </Card>
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - UPDATED with SEVDO integration */}
       <Card className="!p-4 sm:!p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* AI Website Builder - Featured */}
-          <div className="sm:col-span-2 lg:col-span-1">
-            <Button 
-              className="w-full h-20 sm:h-24 flex flex-col items-center justify-center space-y-2"
-              onClick={() => setActiveView('hybrid-builder')}
-            >
-              <Wand2 className="h-5 w-5 sm:h-6 sm:w-6" />
-              <div className="text-center">
-                <div className="font-medium text-sm sm:text-base">AI Website Builder</div>
-                <div className="text-xs opacity-90">Smart Builder with Chat</div>
-              </div>
-            </Button>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* AI Website Builder - Enhanced */}
+          <Button 
+            className="h-20 sm:h-24 flex flex-col items-center justify-center space-y-2 bg-gradient-to-br from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+            onClick={() => setActiveView('hybrid-builder')}
+          >
+            <Wand2 className="h-5 w-5 sm:h-6 sm:w-6" />
+            <div className="text-center">
+              <div className="font-medium text-sm sm:text-base">AI Builder</div>
+              <div className="text-xs opacity-90">Chat + Tokens</div>
+            </div>
+          </Button>
+          
+          {/* SEVDO Token Builder - NEW */}
+          <Button 
+            variant="outline"
+            className="h-20 sm:h-24 flex flex-col items-center justify-center space-y-2 border-blue-300 hover:border-blue-500 hover:bg-blue-50"
+            onClick={() => setActiveView('sevdo-builder')}
+          >
+            <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+            <div className="text-center">
+              <div className="font-medium text-sm sm:text-base">SEVDO Builder</div>
+              <div className="text-xs opacity-70">Pure Token Magic</div>
+            </div>
+          </Button>
           
           {/* Advanced Project */}
           <Button 
@@ -225,19 +241,20 @@ const OverviewTab = () => {
             <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
             <div className="text-center">
               <div className="font-medium text-sm sm:text-base">Advanced Project</div>
-              <div className="text-xs opacity-70">Token-based Builder</div>
+              <div className="text-xs opacity-70">Full Configuration</div>
             </div>
           </Button>
           
-          {/* Generate Tokens */}
+          {/* Quick Generation */}
           <Button 
             variant="outline" 
             className="h-20 sm:h-24 flex flex-col items-center justify-center space-y-2"
+            onClick={() => setActiveView('sevdo-builder')}
           >
             <Code className="h-5 w-5 sm:h-6 sm:w-6" />
             <div className="text-center">
-              <div className="font-medium text-sm sm:text-base">Generate Tokens</div>
-              <div className="text-xs opacity-70">Direct Code Gen</div>
+              <div className="font-medium text-sm sm:text-base">Quick Gen</div>
+              <div className="text-xs opacity-70">Instant Code</div>
             </div>
           </Button>
         </div>
@@ -276,6 +293,13 @@ const OverviewTab = () => {
               <div className="text-center py-8 text-gray-500">
                 <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No projects yet</p>
+                <Button 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => setActiveView('sevdo-builder')}
+                >
+                  Create First Project
+                </Button>
               </div>
             )}
           </div>

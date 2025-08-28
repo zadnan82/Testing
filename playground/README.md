@@ -22,6 +22,7 @@ playground/
 ## 🎯 DSL Syntax Examples
 
 ### Basic Elements
+
 - `h(Hello World)` - Header
 - `t(This is text)` - Paragraph
 - `b(Button Text)` - Button
@@ -30,15 +31,18 @@ playground/
 - `sel(option1,option2)` - Select dropdown
 
 ### Containers
+
 - `c(...)` - Flex column container (gap-4 by default)
 - `f(...)` - Form container
 
 ### Properties
+
 - `b(Button, onClick=alert('Hi!'))` - Button with click handler
 - `i(placeholder, label=Name)` - Input with label
 - `c(class=custom-classes)` - Container with custom Tailwind classes
 
 ### Nesting
+
 ```
 c(class=gap-6)
 h(Main Title)
@@ -50,10 +54,12 @@ b(A button)
 ## 🔧 Running the Playground
 
 ### Prerequisites
+
 - Python 3.8+
 - Required packages: `fastapi`, `uvicorn`, `watchdog`, `jinja2`
 
 ### Installation
+
 ```bash
 # Install dependencies
 pip install fastapi uvicorn watchdog jinja2
@@ -63,13 +69,14 @@ pip install -r requirements.txt
 ```
 
 ### Starting the Server
+
 ```bash
 # From the project root directory
 cd playground
 python playground_server.py
 ```
 
-Then open http://localhost:8000 in your browser.
+Then open http://localhost:8003 in your browser.
 
 ## 📝 Creating Your First Component
 
@@ -99,12 +106,16 @@ The playground automatically watches for changes in `input_files/` and recompile
 ## 🛠️ Advanced Usage
 
 ### Custom Component Registration
+
 You can register custom components by creating Python files in `sevdo_frontend/prefabs/` that define:
+
 - `COMPONENT_TOKEN` - The DSL token for your component
 - `render_prefab(args, props)` - Function that returns JSX
 
 ### Custom Styling
+
 All components use Tailwind CSS classes. You can customize the appearance by:
+
 - Modifying the generated JSX files
 - Adding custom CSS to the HTML templates
 - Using the `class` property on containers
@@ -123,10 +134,10 @@ For complete DSL documentation, see `docs/frontend_dsl.md` in the project root.
 ## 🤝 Contributing
 
 Feel free to extend the playground with:
+
 - More example files
 - Custom templates
 - Additional features
 - Better error handling
 
 Happy coding! 🎉
-

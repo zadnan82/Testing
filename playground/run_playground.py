@@ -8,14 +8,15 @@ import sys
 import subprocess
 from pathlib import Path
 
+
 def check_dependencies():
     """Check if required packages are installed."""
-    required_packages = ['fastapi', 'uvicorn', 'watchdog', 'jinja2']
+    required_packages = ["fastapi", "uvicorn", "watchdog", "jinja2"]
     missing_packages = []
 
     for package in required_packages:
         try:
-            __import__(package.replace('-', '_'))
+            __import__(package.replace("-", "_"))
         except ImportError:
             missing_packages.append(package)
 
@@ -28,6 +29,7 @@ def check_dependencies():
         return False
 
     return True
+
 
 def main():
     """Main entry point."""
@@ -47,7 +49,7 @@ def main():
 
     print("🚀 Starting playground server...")
     print("📁 Input files: playground/input_files/")
-    print("🌐 Open http://localhost:8000 in your browser")
+    print("🌐 Open http://localhost:8003 in your browser")
     print("\nPress Ctrl+C to stop the server")
     print("-" * 40)
 
@@ -60,6 +62,6 @@ def main():
         print(f"\n❌ Server failed with exit code {e.returncode}")
         sys.exit(1)
 
+
 if __name__ == "__main__":
     main()
-

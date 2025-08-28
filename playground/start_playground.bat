@@ -4,7 +4,7 @@ echo ================================
 echo.
 echo 🚀 Starting playground server...
 echo 📁 Input files: playground\input_files\
-echo 🌐 Open http://localhost:8000 in your browser
+echo 🌐 Open http://localhost:8003 in your browser
 echo.
 echo Press Ctrl+C to stop the server
 echo --------------------------------

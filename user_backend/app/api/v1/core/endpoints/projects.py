@@ -97,50 +97,6 @@ async def create_project(
         )
 
 
-@router.get("/", response_model=List[ProjectOutSchema])
-async def list_projects(
-    status_filter: Optional[ProjectStatus] = None,
-    project_type: Optional[ProjectType] = None,
-    limit: int = 50,
-    offset: int = 0,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db),
-):
-    """List user's projects with optional filtering"""
-    query = select(Project).where(Project.user_id == current_user.id)
-
-    if status_filter:
-        query = query.where(Project.status == status_filter)
-    if project_type:
-        query = query.where(Project.project_type == project_type)
-
-    query = query.order_by(desc(Project.updated_at)).limit(limit).offset(offset)
-
-    projects = db.execute(query).scalars().all()
-    return [ProjectOutSchema.model_validate(p) for p in projects]
-
-
-@router.get("/{project_id}", response_model=ProjectOutSchema)
-async def get_project(
-    project_id: int,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db),
-):
-    """Get project by ID"""
-    project = db.execute(
-        select(Project).where(
-            Project.id == project_id, Project.user_id == current_user.id
-        )
-    ).scalar_one_or_none()
-
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
-        )
-
-    return ProjectOutSchema.model_validate(project)
-
-
 @router.put("/{project_id}", response_model=ProjectOutSchema)
 async def update_project(
     project_id: int,
@@ -451,3 +407,74 @@ async def run_code_generation(generation_id: int, project_id: int, user_id: int)
     # TODO: Integrate with your sevdo-backend compiler
     # This would call the token-to-code generation service
     pass
+
+
+def convert_project_to_schema(project: Project) -> ProjectOutSchema:
+    """Convert project with tokens to user-friendly schema"""
+    from user_backend.app.api.v1.core.endpoints.ai import tokens_to_features
+
+    # Convert internal tokens to user-friendly features
+    features = tokens_to_features(project.tokens)
+
+    return ProjectOutSchema(
+        id=project.id,
+        name=project.name,
+        description=project.description,
+        project_type=project.project_type,
+        features=features,  # Show features instead of tokens
+        status=project.status,
+        config=project.config,
+        working_directory=project.working_directory,
+        include_imports=project.include_imports,
+        generation_count=project.generation_count,
+        last_generated_at=project.last_generated_at,
+        created_at=project.created_at,
+        updated_at=project.updated_at,
+        user_id=project.user_id,
+    )
+
+
+# REPLACE your existing get_project function with this:
+@router.get("/{project_id}", response_model=ProjectOutSchema)
+async def get_project(
+    project_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """Get project by ID - returns user-friendly features"""
+    project = db.execute(
+        select(Project).where(
+            Project.id == project_id, Project.user_id == current_user.id
+        )
+    ).scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Project not found"
+        )
+
+    return convert_project_to_schema(project)
+
+
+# REPLACE your existing list_projects function with this:
+@router.get("/", response_model=List[ProjectOutSchema])
+async def list_projects(
+    status_filter: Optional[ProjectStatus] = None,
+    project_type: Optional[ProjectType] = None,
+    limit: int = 50,
+    offset: int = 0,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    """List user's projects with features instead of tokens"""
+    query = select(Project).where(Project.user_id == current_user.id)
+
+    if status_filter:
+        query = query.where(Project.status == status_filter)
+    if project_type:
+        query = query.where(Project.project_type == project_type)
+
+    query = query.order_by(desc(Project.updated_at)).limit(limit).offset(offset)
+
+    projects = db.execute(query).scalars().all()
+    return [convert_project_to_schema(p) for p in projects]

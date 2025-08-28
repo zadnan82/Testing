@@ -1,5 +1,6 @@
 import base64
 from datetime import UTC, datetime, timedelta, timezone
+import logging
 from random import SystemRandom
 from typing import Annotated
 from uuid import UUID
@@ -8,11 +9,18 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-
+from sqlalchemy.exc import SQLAlchemyError
 from user_backend.app.api.v1.core.models import Token, User, UserType
+from user_backend.app.core.exceptions import (
+    AuthorizationError,
+    DatabaseError,
+    InsufficientPermissionsError,
+)
+from user_backend.app.core.security import get_current_active_user
 from user_backend.app.db_setup import get_db
 from user_backend.app.settings import settings
 
+logger = logging.getLogger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v1/auth/token")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -172,3 +180,37 @@ def get_current_token(
     """
     token = verify_token_access(token_str=token, db=db)
     return token
+
+
+# user_backend/app/core/security.py
+# ADD THIS FUNCTION TO YOUR EXISTING security.py FILE
+
+
+def require_admin(
+    current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)
+) -> User:
+    """Require admin privileges"""
+    try:
+        # Get admin user type
+        admin_type = (
+            db.execute(select(UserType).where(UserType.name == "admin"))
+            .scalars()
+            .first()
+        )
+
+        if not admin_type:
+            logger.error("Admin user type not found in database")
+            raise AuthorizationError("Admin access not configured")
+
+        if current_user.user_type_id != admin_type.id:
+            raise InsufficientPermissionsError(
+                "Admin privileges required for this operation"
+            )
+
+        return current_user
+
+    except (AuthorizationError, InsufficientPermissionsError):
+        raise
+    except SQLAlchemyError as e:
+        logger.error(f"Database error checking admin privileges: {str(e)}")
+        raise DatabaseError("Failed to verify admin privileges")

@@ -16,6 +16,7 @@ from user_backend.app.api.v1.core.endpoints import (
     user_preferences,
     notifications,
     websockets,
+    sevdo,
 )
 
 # Configure logger
@@ -34,6 +35,11 @@ api_router.include_router(
 api_router.include_router(
     projects.router,
     tags=["Projects"],
+)
+
+api_router.include_router(
+    sevdo.router,
+    tags=["Sevdo"],
 )
 
 api_router.include_router(
@@ -108,6 +114,7 @@ async def api_status():
             "tokens": True,
             "templates": True,
             "ai": True,
+            "sevdo": True,
         },
         "enhanced_endpoints": {
             "analytics": analytics is not None,
@@ -137,9 +144,8 @@ async def api_status():
             "/tokens": "Token system and validation",
             "/templates": "Project templates and reusable configurations",
             "/ai": "AI-powered features and chat integration",
-            "/analytics": "Usage analytics and reporting"
-            if analytics
-            else "Not available",
+            "/analytics": "Usage analytics and reporting",
+            "/sevdo": "Sevdo vuilder" if analytics else "Not available",
             "/files": "File upload and management" if files else "Not available",
             "/system": "System health and monitoring" if system else "Not available",
             "/notifications": "User notification system"
@@ -170,6 +176,12 @@ async def list_endpoints():
                 "path": "/api/v1/projects",
                 "methods": ["GET", "POST", "PUT", "DELETE"],
                 "description": "Project CRUD operations and code generation",
+                "status": "available",
+            },
+            {
+                "path": "/api/v1/sevdo",
+                "methods": ["GET", "POST", "PUT", "DELETE"],
+                "description": "Sevdo CRUD operations and code generation",
                 "status": "available",
             },
             {

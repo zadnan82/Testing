@@ -23,7 +23,7 @@ export const CONFIG = {
     SESSIONS: '/api/v1/auth/sessions',
     REVOKE_SESSION: '/api/v1/auth/sessions',
     
-    // User Preferences (NEW)
+    // User Preferences
     GET_PREFERENCES: '/api/v1/auth/profile/preferences',
     UPDATE_PREFERENCES: '/api/v1/auth/profile/preferences',
     USER_USAGE_STATS: '/api/v1/auth/profile/usage',
@@ -35,27 +35,32 @@ export const CONFIG = {
     PROJECT_GENERATIONS: '/api/v1/projects/{id}/generations',
     PROJECT_FILES: '/api/v1/projects/{id}/files',
     
-    // Analytics endpoints (NEW)
+    // SEVDO endpoints (NEW)
+    SEVDO_GENERATE_BACKEND: '/api/v1/sevdo/generate/backend',
+    SEVDO_GENERATE_FRONTEND: '/api/v1/sevdo/generate/frontend',
+    SEVDO_GENERATE_PROJECT: '/api/v1/sevdo/generate/project',
+    
+    // Analytics endpoints
     DASHBOARD_ANALYTICS: '/api/v1/analytics/dashboard',
     PROJECT_ANALYTICS: '/api/v1/analytics/projects',
     USAGE_ANALYTICS: '/api/v1/analytics/usage',
     PERFORMANCE_METRICS: '/api/v1/analytics/performance',
     USER_ACTIVITY: '/api/v1/analytics/activity',
     
-    // File Management endpoints (NEW)
+    // File Management endpoints
     UPLOAD_FILE: '/api/v1/files/upload',
     DOWNLOAD_FILE: '/api/v1/files/{id}',
     DELETE_FILE: '/api/v1/files/{id}',
     LIST_PROJECT_FILES: '/api/v1/files/project/{id}',
     
-    // System endpoints (NEW)
+    // System endpoints
     SYSTEM_HEALTH: '/api/v1/system/health',
     SYSTEM_STATUS: '/api/v1/system/status',
     SYSTEM_METRICS: '/api/v1/system/metrics',
     REPORT_ERROR: '/api/v1/system/errors/report',
     SUBMIT_FEEDBACK: '/api/v1/system/feedback',
     
-    // Notifications endpoints (NEW)
+    // Notifications endpoints
     NOTIFICATIONS: '/api/v1/notifications',
     MARK_NOTIFICATION_READ: '/api/v1/notifications/{id}/read',
     MARK_ALL_READ: '/api/v1/notifications/mark-all-read',
@@ -78,7 +83,7 @@ export const CONFIG = {
     AI_PROJECT_FROM_DESCRIPTION: '/api/v1/ai/project-from-description',
     AI_CHAT: '/api/v1/ai/chat',
     
-    // WebSocket endpoints (NEW)
+    // WebSocket endpoints
     WS_NOTIFICATIONS: '/api/v1/ws/notifications',
     WS_PROJECT_GENERATION: '/api/v1/ws/projects/{id}/generation',
     
@@ -117,6 +122,7 @@ export const CONFIG = {
     NOTIFICATIONS: true,
     WEBSOCKETS: true,
     AI_FEATURES: true,
+    SEVDO_INTEGRATION: true, // NEW
   },
   
   // Error Messages
@@ -128,7 +134,8 @@ export const CONFIG = {
     CONFLICT: 'A conflict occurred. Please try again.',
     SERVER_ERROR: 'Server error. Please try again later.',
     TIMEOUT: 'Request timed out. Please try again.',
-    VALIDATION_ERROR: 'Please check your input and try again.'
+    VALIDATION_ERROR: 'Please check your input and try again.',
+    GENERATION_ERROR: 'Code generation failed. Please try again.'
   }
 };
 

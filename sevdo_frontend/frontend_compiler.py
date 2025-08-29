@@ -1,5 +1,3 @@
-# sevdo_frontend/frontend_compiler.py - FIXED VERSION
-
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
@@ -417,7 +415,7 @@ def jsx_to_dsl(jsx_source: str) -> List[str]:
 
 # ----------------- FastAPI app and schemas -----------------
 
-# 🚀 CREATE THE APP PROPERLY
+# CREATE THE APP PROPERLY
 app = FastAPI(
     title="SEVDO Frontend Service",
     description="Frontend code generation service using DSL",
@@ -540,10 +538,10 @@ def _write_if_changed(path: str, content: str) -> bool:
         )
 
 
-# ----------------- 🚀 FIXED API ENDPOINTS -----------------
+# ----------------- API ENDPOINTS -----------------
 
 
-# 🎯 ROOT AND HEALTH ENDPOINTS
+# ROOT AND HEALTH ENDPOINTS
 @app.get("/")
 async def root():
     """Root endpoint"""
@@ -575,7 +573,7 @@ async def health():
     }
 
 
-# 🎯 DEBUG ENDPOINT
+# DEBUG ENDPOINT
 @app.get("/debug/routes")
 async def list_routes():
     """Debug endpoint to list all available routes"""
@@ -592,13 +590,13 @@ async def list_routes():
     }
 
 
-# 🎯 NEW: DIRECT DSL-TO-JSX ENDPOINT (no files needed)
+# DIRECT DSL-TO-JSX ENDPOINT (no files needed)
 @app.post("/api/fe-translate/to-s-direct")
 async def fe_compile_direct_api(body: FEDirectCompileRequest):
     """Generate frontend code directly from DSL content (no files)"""
     try:
-        print(f"🎨 Direct frontend generation request: {body.component_name}")
-        print(f"📝 DSL content: {body.dsl_content[:100]}...")
+        print(f"Direct frontend generation request: {body.component_name}")
+        print(f"DSL content: {body.dsl_content[:100]}...")
 
         # Handle use_cache field safely
         use_cache = getattr(body, "use_cache", True)
@@ -616,10 +614,10 @@ async def fe_compile_direct_api(body: FEDirectCompileRequest):
             )
             if use_cache:
                 DSL_TO_JSX_CACHE.set(cache_key, jsx)
-            print("✅ Frontend code generated successfully")
+            print("Frontend code generated successfully")
         else:
             jsx = cached
-            print("📦 Using cached frontend code")
+            print("Using cached frontend code")
 
         return {
             "success": True,
@@ -629,7 +627,7 @@ async def fe_compile_direct_api(body: FEDirectCompileRequest):
             "cache_hit": cached is not None,
         }
     except Exception as exc:
-        print(f"❌ Frontend generation failed: {exc}")
+        print(f"Frontend generation failed: {exc}")
         raise HTTPException(
             status_code=400,
             detail={
@@ -640,21 +638,26 @@ async def fe_compile_direct_api(body: FEDirectCompileRequest):
         )
 
 
-# 🎯 ORIGINAL FILE-BASED ENDPOINT (fixed)
+# FILE-BASED ENDPOINT
 @app.post("/api/fe-translate/to-s")
 async def fe_compile_api(body: FECompileRequest):
     """Generate frontend code from DSL file"""
     try:
-        print(f"📁 File-based frontend generation: {body.input_path}")
+        print(f"File-based frontend generation: {body.input_path}")
 
         # Check if we're in a test scenario with temporary content
         if not Path(body.input_path).exists():
             # Create a temporary file for the request
             temp_content = """
-pg(h(Welcome)n(MyWebsite)c(Your awesome website))
-lf(h(Member Login)b(Sign In))
-rf(h(Create Account)b(Register))
-ft(h(My Website)t(Built with SEVDO)y(2024))
+c(
+  h(Welcome to My Site)
+  t(This is a sample page generated from DSL)
+  f(
+    i(Enter your name, label=Name)
+    i(Enter your email, label=Email)
+    b(Submit)
+  )
+)
             """.strip()
 
             # Create temp directory and file
@@ -666,7 +669,7 @@ ft(h(My Website)t(Built with SEVDO)y(2024))
 
             # Use the temporary file
             content = temp_content
-            print(f"🔄 Using temporary DSL content for generation")
+            print("Using temporary DSL content for generation")
         else:
             content = _read_text_with_limits(body.input_path)
 
@@ -687,7 +690,7 @@ ft(h(My Website)t(Built with SEVDO)y(2024))
         _ensure_output_parent_exists(body.output_path)
         changed = _write_if_changed(body.output_path, jsx)
 
-        print("✅ File-based frontend generation completed")
+        print("File-based frontend generation completed")
 
         return {
             "success": True,
@@ -699,7 +702,7 @@ ft(h(My Website)t(Built with SEVDO)y(2024))
     except HTTPException:
         raise
     except Exception as exc:
-        print(f"❌ File-based frontend generation failed: {exc}")
+        print(f"File-based frontend generation failed: {exc}")
         raise HTTPException(
             status_code=400,
             detail={"code": "unexpected_error", "error": str(exc)},
@@ -739,7 +742,7 @@ async def fe_decompile_api(body: FEDecompileRequest):
         )
 
 
-# 🎯 CACHE MANAGEMENT
+# CACHE MANAGEMENT
 @app.get("/api/fe-cache/stats")
 async def fe_cache_stats():
     return {
@@ -763,7 +766,7 @@ async def fe_cache_flush():
     return {"flushed": True}
 
 
-# 🎯 BATCH ENDPOINTS (existing code - keeping for compatibility)
+# BATCH ENDPOINTS
 class FEBatchCompileJob(BaseModel):
     id: Optional[str] = None
     input_path: str
@@ -917,18 +920,18 @@ async def fe_decompile_batch_api(body: FEBatchDecompileRequest):
     }
 
 
-# 🎯 MAIN ENTRY POINT
+# MAIN ENTRY POINT
 if __name__ == "__main__":
-    # `sevdo_frontend/input.txt` if exists
+    # Process input.txt if exists
     in_path = Path("input.txt")
     out_path = Path("output.jsx")
     if in_path.exists():
         jsx = dsl_to_jsx(in_path.read_text(encoding="utf-8"))
         out_path.write_text(jsx, encoding="utf-8")
-        print(f"✅ Generated {out_path} from {in_path}")
+        print(f"Generated {out_path} from {in_path}")
 
     # Start the server when run directly
     import uvicorn
 
-    print("🚀 Starting SEVDO Frontend Service...")
+    print("Starting SEVDO Frontend Service...")
     uvicorn.run(app, host="0.0.0.0", port=8002, log_level="info")

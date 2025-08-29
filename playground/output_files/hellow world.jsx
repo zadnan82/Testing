@@ -20,11 +20,11 @@ export default function HellowWorldComponent() {
     </div>
   </div>
 </form>
-  <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded">Click</button>
-  <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded">Click</button>
-  <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded">Click</button>
-  <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded">Click</button>
-  <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded">The last button</button>
+  <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded px-4 py-2 text-sm">Click</button>
+  <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded px-4 py-2 text-sm">Click</button>
+  <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded px-4 py-2 text-sm">Click</button>
+  <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded px-4 py-2 text-sm">Click</button>
+  <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded px-4 py-2 text-sm">Click</button>
 </>
   );
 }

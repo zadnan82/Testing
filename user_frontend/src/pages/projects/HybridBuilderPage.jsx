@@ -1,22 +1,29 @@
-// user_frontend/src/pages/projects/HybridBuilderPage.jsx - UPDATED VERSION
+// =============================================================================
+// FIXED: user_frontend/src/pages/projects/HybridBuilderPage.jsx
+// =============================================================================
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, MessageSquare, Wand2, Eye, Download, Globe, Send, Sparkles, Code, Check } from 'lucide-react';
-import Button from '../../components/ui/Button'; 
+import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import { sevdoService } from '../../services/sevdo.service';
 import { useToast } from '../../components/ui/Toast';
 import { 
   getTokensFromFeatures, 
-  getDSLFromFeatures, // NEW: Import DSL generation
+  getDSLFromFeatures,
   USER_FEATURES,
   generateProjectDescription 
 } from '../../utils/featureMapping';
+import DynamicCodePreview from './DynamicCodePreview';
 
 const HybridBuilderPage = ({ onBack }) => {
   const [selectedFeatures, setSelectedFeatures] = useState([]);
   const [chatMessages, setChatMessages] = useState([]);
   const [currentMessage, setCurrentMessage] = useState('');
+  
+  // 🔧 FIX: Add missing projectName state
+  const [projectName, setProjectName] = useState('AI Generated Website');
+  
   const [customization, setCustomization] = useState({
     color: 'blue',
     style: 'modern',
@@ -28,7 +35,7 @@ const HybridBuilderPage = ({ onBack }) => {
   const chatEndRef = useRef(null);
   const toast = useToast();
 
-  // User-friendly feature options (same as before)
+  // User-friendly feature options
   const quickFeatures = [
     { id: 'user_login', name: 'User Login', icon: '🔐', popular: true, description: 'Secure user authentication' },
     { id: 'user_registration', name: 'User Registration', icon: '👤', popular: true, description: 'New user sign-up' },
@@ -163,7 +170,7 @@ const HybridBuilderPage = ({ onBack }) => {
     };
   };
 
-  // 🚀 UPDATED: Enhanced website building with BOTH backend and frontend
+  // 🚀 FIXED: Enhanced website building with proper project name handling
   const handleBuildWebsite = async () => {
     setLoading(true);
     
@@ -179,14 +186,17 @@ const HybridBuilderPage = ({ onBack }) => {
         console.log('🔧 Converting to tokens:', tokens);
         console.log('🎨 Generated frontend DSL:', frontendDSL);
         
-        const projectName = `AI Generated ${customization.style} Website`;
+        // 🔧 FIX: Generate project name dynamically if not set
+        const finalProjectName = projectName || `AI Generated ${customization.style} Website`;
         const description = generateProjectDescription(prompt.features);
+        
+        console.log('🏷️ Using project name:', finalProjectName);
         
         // ✨ ENHANCED: Generate BOTH backend and frontend
         const result = await sevdoService.generateProject(
-          projectName,
-          tokens,          // Backend tokens
-          prompt.features, // Features for frontend generation
+          finalProjectName,  // 🔧 FIX: Use the defined project name
+          tokens,            // Backend tokens
+          prompt.features,   // Features for frontend generation
           true
         );
         
@@ -195,6 +205,7 @@ const HybridBuilderPage = ({ onBack }) => {
         result.description = description;
         result.tokens = tokens;
         result.frontendDSL = frontendDSL;
+        result.projectName = finalProjectName; // 🔧 FIX: Store project name in result
         
         setGeneratedProject(result);
         
@@ -211,12 +222,15 @@ const HybridBuilderPage = ({ onBack }) => {
         
       } else if (prompt.customRequests) {
         // Use AI generation for custom descriptions
+        const finalProjectName = projectName || 'AI Custom Website';
+        
         const result = await sevdoService.generateFromDescription(
           prompt.customRequests,
           'WEB_APP'
         );
         
         result.prompt = prompt;
+        result.projectName = finalProjectName; // 🔧 FIX: Add project name
         setGeneratedProject(result);
         
         if (result.backend && result.frontend) {
@@ -227,10 +241,13 @@ const HybridBuilderPage = ({ onBack }) => {
         
       } else {
         // Fallback - create layout only
+        const finalProjectName = projectName || 'Basic Website Layout';
+        
         await new Promise(resolve => setTimeout(resolve, 2000));
         setGeneratedProject({ 
           mockGeneration: true, 
           prompt,
+          projectName: finalProjectName, // 🔧 FIX: Add project name
           message: 'Website layout created! Add features to generate working code.',
           backend: null,
           frontend: null
@@ -248,6 +265,7 @@ const HybridBuilderPage = ({ onBack }) => {
         error: true, 
         message: error.message,
         prompt: buildProjectPrompt(),
+        projectName: projectName || 'Failed Generation', // 🔧 FIX: Add project name even for errors
         backend: null,
         frontend: null
       });
@@ -261,11 +279,12 @@ const HybridBuilderPage = ({ onBack }) => {
     quickFeatures.find(f => f.id === id) || USER_FEATURES[id]
   ).filter(Boolean);
 
-  if (stage === 'preview') {
+  // 🎨 RESULT MODE - Show generated code with dynamic preview
+  if (stage === 'preview' && generatedProject) {
     return <WebsitePreviewPage onBack={() => setStage('input')} generatedProject={generatedProject} />;
   }
 
-  // 🎨 FRONTEND JSX (same as before, but now it will generate both backend and frontend!)
+  // 🎨 FRONTEND JSX - ENHANCED with project name input
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-6xl mx-auto">
@@ -291,9 +310,61 @@ const HybridBuilderPage = ({ onBack }) => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Features & Chat (same as before) */}
+          {/* Left Column - Features & Chat */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Quick Features */}
+            {/* 🔧 NEW: Project Name Input */}
+            <Card>
+              <Card.Header>
+                <Card.Title>🏷️ Project Details</Card.Title>
+              </Card.Header>
+              <Card.Content>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Project Name
+                    </label>
+                    <input
+                      type="text"
+                      value={projectName}
+                      onChange={(e) => setProjectName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g., My Awesome Website"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      💡 This will be used as your website's name in the generated code
+                    </p>
+                  </div>
+                  
+                  {/* Quick project name suggestions based on features */}
+                  {selectedFeatures.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Quick Suggestions:
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          selectedFeatures.includes('shopping_cart') && 'Online Store',
+                          selectedFeatures.includes('blog_system') && 'Blog Website', 
+                          selectedFeatures.includes('admin_panel') && 'Business Dashboard',
+                          selectedFeatures.includes('gallery') && 'Portfolio Site',
+                          selectedFeatures.includes('contact_form') && 'Business Website'
+                        ].filter(Boolean).map(suggestion => (
+                          <button
+                            key={suggestion}
+                            onClick={() => setProjectName(suggestion)}
+                            className="px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-full text-xs transition-colors"
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card.Content>
+            </Card>
+
+            {/* Quick Features - existing code */}
             <Card>
               <Card.Header>
                 <Card.Title>🚀 Popular Website Features</Card.Title>
@@ -348,7 +419,7 @@ const HybridBuilderPage = ({ onBack }) => {
               </Card.Content>
             </Card>
 
-            {/* Chat Interface (same as before) */}
+            {/* Chat Interface - existing code */}
             <Card>
               <Card.Header>
                 <Card.Title>💬 Chat with AI</Card.Title>
@@ -424,7 +495,7 @@ const HybridBuilderPage = ({ onBack }) => {
 
           {/* Right Column - Customization & Build */}
           <div className="space-y-6">
-            {/* Customization (same as before) */}
+            {/* Customization */}
             <Card>
               <Card.Header>
                 <Card.Title>🎨 Style Options</Card.Title>
@@ -470,11 +541,18 @@ const HybridBuilderPage = ({ onBack }) => {
 
             {/* Build Button - ENHANCED */}
             <Card>
+              <Card.Header>
+                <Card.Title>🚀 Generate Code</Card.Title>
+              </Card.Header>
               <Card.Content className="space-y-3">
                 <Button
                   onClick={handleBuildWebsite}
                   loading={loading}
-                  disabled={selectedFeatures.length === 0 && chatMessages.filter(m => m.type === 'user').length === 0}
+                  disabled={
+                    loading || 
+                    (selectedFeatures.length === 0 && chatMessages.filter(m => m.type === 'user').length === 0) ||
+                    !projectName.trim() // 🔧 FIX: Require project name
+                  }
                   className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
                   size="lg"
                 >
@@ -482,12 +560,23 @@ const HybridBuilderPage = ({ onBack }) => {
                   {loading ? 'Building Complete Website...' : '🚀 Build Full Website'}
                 </Button>
 
+                {/* Show validation message */}
+                {!projectName.trim() && (
+                  <p className="text-xs text-red-600 text-center">
+                    ⚠️ Please enter a project name first
+                  </p>
+                )}
+
+                <div className="text-xs text-center text-gray-500">
+                  💡 Tip: Our AI will generate both backend and frontend code for your website
+                </div>
+
                 {/* Enhanced Progress Indicator */}
                 {loading && (
                   <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg border">
                     <div className="text-sm text-blue-900 mb-2 flex items-center">
                       <Code className="h-4 w-4 animate-pulse mr-2" />
-                      AI is building backend + frontend code...
+                      AI is building "{projectName}" with backend + frontend code...
                     </div>
                     <div className="w-full bg-blue-200 rounded-full h-2">
                       <div className="bg-gradient-to-r from-blue-600 to-purple-600 h-2 rounded-full animate-pulse" style={{width: '70%'}}></div>
@@ -501,13 +590,21 @@ const HybridBuilderPage = ({ onBack }) => {
             </Card>
 
             {/* Enhanced Project Summary */}
-            {(selectedFeatures.length > 0 || chatMessages.some(m => m.type === 'user')) && (
+            {(selectedFeatures.length > 0 || chatMessages.some(m => m.type === 'user') || projectName.trim()) && (
               <Card>
                 <Card.Header>
                   <Card.Title>📋 Complete Website Package</Card.Title>
                 </Card.Header>
                 <Card.Content>
                   <div className="space-y-3 text-sm">
+                    {/* 🔧 NEW: Show project name */}
+                    {projectName.trim() && (
+                      <div>
+                        <span className="font-medium text-gray-700">Project Name:</span>
+                        <div className="mt-1 font-semibold text-gray-900">"{projectName}"</div>
+                      </div>
+                    )}
+
                     {selectedFeatures.length > 0 && (
                       <div>
                         <span className="font-medium text-gray-700">Features ({selectedFeatures.length}):</span>
@@ -556,7 +653,7 @@ const HybridBuilderPage = ({ onBack }) => {
   );
 };
 
-// 🎨 UPDATED: Enhanced Website Preview Component
+// 🎨 Website Preview Component (updated to use DynamicCodePreview)
 const WebsitePreviewPage = ({ onBack, generatedProject }) => {
   const toast = useToast();
 
@@ -586,11 +683,12 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
   const hasBackend = generatedProject?.backend?.success || generatedProject?.backend?.code;
   const hasFrontend = generatedProject?.frontend?.success || generatedProject?.frontend?.code;
   const hasErrors = generatedProject?.errors?.length > 0;
+  const projectName = generatedProject?.projectName || 'Generated Website'; // 🔧 FIX: Use project name from result
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-6xl mx-auto">
-        {/* Enhanced Header */}
+        {/* Enhanced Header with project name */}
         <div className="mb-8 text-center">
           <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${
             generatedProject?.error ? 'bg-orange-100' : 
@@ -604,10 +702,10 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
             }`} />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {generatedProject?.error ? '⚠️ Partial Generation' : 
-             hasBackend && hasFrontend ? '🎉 Complete Website Ready!' :
-             hasBackend ? '✅ Backend Generated!' :
-             hasFrontend ? '🎨 Frontend Generated!' : '📋 Layout Created'}
+            {generatedProject?.error ? '⚠️ Generation Issues' : 
+             hasBackend && hasFrontend ? `🎉 "${projectName}" is Ready!` :
+             hasBackend ? `✅ "${projectName}" Backend Generated!` :
+             hasFrontend ? `🎨 "${projectName}" Frontend Generated!` : `📋 "${projectName}" Layout Created`}
           </h1>
           <p className="text-gray-600">
             {generatedProject?.error 
@@ -626,6 +724,24 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Code Display - ENHANCED */}
           <div className="xl:col-span-2 space-y-6">
+            {/* Dynamic Code Preview - NEW! */}
+            {hasFrontend && (
+              <Card>
+                <Card.Header>
+                  <Card.Title className="flex items-center">
+                    <Eye className="h-5 w-5 mr-2" />
+                    Live Website Preview (Generated Code)
+                  </Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <DynamicCodePreview 
+                    generatedCode={generatedProject} 
+                    projectName={projectName}
+                  />
+                </Card.Content>
+              </Card>
+            )}
+
             {/* Backend Code Display */}
             {hasBackend && (
               <Card>
@@ -648,7 +764,7 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
                         size="sm"
                         onClick={() => downloadCode(
                           generatedProject.backend?.code,
-                          'backend_api.py'
+                          `${projectName.replace(/\s+/g, '_').toLowerCase()}_backend.py`
                         )}
                       >
                         <Download className="h-4 w-4 mr-1" />
@@ -694,7 +810,7 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
                         size="sm"
                         onClick={() => downloadCode(
                           generatedProject.frontend?.code,
-                          'frontend_components.jsx'
+                          `${projectName.replace(/\s+/g, '_').toLowerCase()}_frontend.jsx`
                         )}
                       >
                         <Download className="h-4 w-4 mr-1" />
@@ -738,111 +854,6 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
                 </Card.Content>
               </Card>
             )}
-
-            {/* Website Preview Mockup */}
-            <Card>
-              <Card.Header>
-                <Card.Title>🖥️ Website Preview</Card.Title>
-              </Card.Header>
-              <Card.Content>
-                <div className="bg-white border rounded-lg p-6 min-h-96">
-                  <div className="border-b pb-4 mb-4">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <div className="w-3 h-3 bg-red-400 rounded-full"></div>
-                      <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-                      <div className="w-3 h-3 bg-green-400 rounded-full"></div>
-                      <div className="ml-4 bg-gray-100 text-gray-600 px-3 py-1 rounded text-sm">
-                        your-website.com
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-6">
-                    <div>
-                      <h1 className={`text-3xl font-bold mb-2 ${
-                        generatedProject?.prompt?.color === 'blue' ? 'text-blue-600' : 
-                        generatedProject?.prompt?.color === 'green' ? 'text-green-600' : 
-                        generatedProject?.prompt?.color === 'purple' ? 'text-purple-600' : 
-                        'text-blue-600'
-                      }`}>
-                        Welcome to Your {generatedProject?.prompt?.style || 'Modern'} Website
-                      </h1>
-                      <p className="text-gray-600">
-                        {generatedProject?.description || 'Your professional website is ready to go live!'}
-                        {hasBackend && hasFrontend && (
-                          <span className="text-green-600 font-medium"> ✨ Complete with working backend!</span>
-                        )}
-                      </p>
-                    </div>
-                    
-                    {/* Dynamic Feature Previews */}
-                    {generatedProject?.prompt?.features?.includes('user_login') && (
-                      <div className="bg-gray-50 p-4 rounded border">
-                        <h3 className="font-medium mb-3">🔐 User Authentication</h3>
-                        <div className="space-y-2 max-w-xs">
-                          <div className="h-8 bg-white border rounded"></div>
-                          <div className="h-8 bg-white border rounded"></div>
-                          <Button size="sm">Sign In</Button>
-                        </div>
-                        {hasBackend && (
-                          <p className="text-xs text-green-600 mt-2">✓ Working backend API generated!</p>
-                        )}
-                      </div>
-                    )}
-                    
-                    {generatedProject?.prompt?.features?.includes('contact_form') && (
-                      <div className="bg-gray-50 p-4 rounded border">
-                        <h3 className="font-medium mb-3">📧 Contact Form</h3>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="h-8 bg-white border rounded"></div>
-                          <div className="h-8 bg-white border rounded"></div>
-                          <div className="col-span-2 h-20 bg-white border rounded"></div>
-                          <Button size="sm" className="w-fit">Send Message</Button>
-                        </div>
-                        {hasFrontend && (
-                          <p className="text-xs text-blue-600 mt-2">✓ React form component generated!</p>
-                        )}
-                      </div>
-                    )}
-
-                    {generatedProject?.prompt?.features?.includes('admin_panel') && (
-                      <div className="bg-gray-50 p-4 rounded border">
-                        <h3 className="font-medium mb-3">📊 Admin Dashboard</h3>
-                        <div className="grid grid-cols-3 gap-2 mb-3">
-                          <div className="h-12 bg-white border rounded flex items-center justify-center text-xs">Users</div>
-                          <div className="h-12 bg-white border rounded flex items-center justify-center text-xs">Analytics</div>
-                          <div className="h-12 bg-white border rounded flex items-center justify-center text-xs">Settings</div>
-                        </div>
-                        {hasBackend && (
-                          <p className="text-xs text-green-600">✓ Complete admin API generated!</p>
-                        )}
-                      </div>
-                    )}
-
-                    {generatedProject?.prompt?.features?.includes('shopping_cart') && (
-                      <div className="bg-gray-50 p-4 rounded border">
-                        <h3 className="font-medium mb-3">🛒 E-commerce</h3>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="h-24 bg-white border rounded p-2">
-                            <div className="w-full h-12 bg-gray-200 rounded mb-2"></div>
-                            <div className="text-xs">Product Name</div>
-                            <div className="text-xs font-bold">$29.99</div>
-                          </div>
-                          <div className="h-24 bg-white border rounded p-2">
-                            <div className="w-full h-12 bg-gray-200 rounded mb-2"></div>
-                            <div className="text-xs">Another Product</div>
-                            <div className="text-xs font-bold">$39.99</div>
-                          </div>
-                        </div>
-                        {hasBackend && hasFrontend && (
-                          <p className="text-xs text-purple-600 mt-2">✓ Full e-commerce system generated!</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Card.Content>
-            </Card>
           </div>
 
           {/* Right Column - Enhanced Status & Actions */}
@@ -859,6 +870,14 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
               </Card.Header>
               <Card.Content>
                 <div className="space-y-3 text-sm">
+                  {/* Project Info */}
+                  <div className="p-3 bg-blue-50 rounded border">
+                    <div className="font-medium text-blue-900 mb-1">Project: "{projectName}"</div>
+                    <div className="text-blue-700 text-xs">
+                      Generated on {new Date().toLocaleString()}
+                    </div>
+                  </div>
+
                   {/* Backend Status */}
                   <div className="flex items-center justify-between">
                     <span>Backend API</span>
@@ -916,7 +935,7 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
             {/* Download Actions */}
             <Card>
               <Card.Header>
-                <Card.Title>📦 Download Options</Card.Title>
+                <Card.Title>📦 Download "{projectName}"</Card.Title>
               </Card.Header>
               <Card.Content className="space-y-3">
                 {hasBackend && (
@@ -924,7 +943,7 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
                     className="w-full" 
                     onClick={() => downloadCode(
                       generatedProject.backend?.code,
-                      'backend_api.py'
+                      `${projectName.replace(/\s+/g, '_').toLowerCase()}_backend.py`
                     )}
                   >
                     <Download className="h-4 w-4 mr-2" />
@@ -938,7 +957,7 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
                     variant="outline"
                     onClick={() => downloadCode(
                       generatedProject.frontend?.code,
-                      'frontend_components.jsx'
+                      `${projectName.replace(/\s+/g, '_').toLowerCase()}_frontend.jsx`
                     )}
                   >
                     <Download className="h-4 w-4 mr-2" />
@@ -948,7 +967,7 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
                 
                 {hasBackend && hasFrontend && (
                   <Button className="w-full" variant="outline">
-                    📦 Download Complete Project
+                    📦 Download Complete "{projectName}"
                   </Button>
                 )}
                 
@@ -964,7 +983,7 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
             {/* Deploy Options */}
             <Card>
               <Card.Header>
-                <Card.Title>🚀 Deploy & Share</Card.Title>
+                <Card.Title>🚀 Deploy "{projectName}"</Card.Title>
               </Card.Header>
               <Card.Content className="space-y-3">
                 <Button 
@@ -995,10 +1014,12 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
             {(hasBackend || hasFrontend) && (
               <Card>
                 <Card.Header>
-                  <Card.Title>🔧 Technical Stack</Card.Title>
+                  <Card.Title>🔧 Technical Details</Card.Title>
                 </Card.Header>
                 <Card.Content>
                   <div className="space-y-2 text-xs">
+                    <div><strong>Project:</strong> {projectName}</div>
+                    
                     {hasBackend && (
                       <>
                         <div><strong>Backend:</strong> FastAPI + Python</div>
@@ -1045,6 +1066,8 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
                 </Card.Header>
                 <Card.Content>
                   <div className="space-y-2 text-xs text-gray-600">
+                    <div className="font-medium text-gray-900 mb-2">Setup Instructions for "{projectName}":</div>
+                    
                     {hasBackend && (
                       <>
                         <div>1. Install Python dependencies:</div>
@@ -1056,13 +1079,13 @@ const WebsitePreviewPage = ({ onBack, generatedProject }) => {
                     {hasFrontend && (
                       <>
                         <div>3. Set up React environment:</div>
-                        <code className="block bg-gray-100 p-2 rounded text-xs">npx create-react-app my-app</code>
+                        <code className="block bg-gray-100 p-2 rounded text-xs">npx create-react-app {projectName.toLowerCase().replace(/\s+/g, '-')}</code>
                         <div>4. Add Tailwind CSS for styling</div>
                       </>
                     )}
                     {hasBackend && hasFrontend && (
                       <div className="mt-3 p-2 bg-blue-50 rounded text-blue-700">
-                        🎉 You have a complete full-stack application!
+                        🎉 You have a complete full-stack "{projectName}" application!
                       </div>
                     )}
                   </div>

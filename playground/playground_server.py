@@ -36,6 +36,7 @@ from sevdo_frontend.frontend_compiler import dsl_to_jsx, load_prefabs
 INPUT_DIR = Path(__file__).parent / "input_files"
 OUTPUT_DIR = Path(__file__).parent / "output_files"
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+TEMPLATE_INPUT_DIR = Path(__file__).parent.parent / "templates"  # Points to the main templates directory
 
 # Ensure directories exist
 INPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -109,6 +110,69 @@ def compile_all_files():
     return compiled_count
 
 
+def compile_template(template_name: str):
+    """Compile all pages in a template directory."""
+    template_path = TEMPLATE_INPUT_DIR / template_name / "frontend"
+    if not template_path.exists():
+        print(f"Template directory not found: {template_path}")
+        return False
+
+    compiled_count = 0
+    for page_file in template_path.glob("*.s"):  # .s files are DSL template files
+        if compile_template_page(template_name, page_file):
+            compiled_count += 1
+
+    print(f"Compiled {compiled_count} pages for template '{template_name}'")
+    return compiled_count > 0
+
+
+def compile_template_page(template_name: str, page_file: Path):
+    """Compile a single template page."""
+    try:
+        # Read the DSL content
+        dsl_content = page_file.read_text(encoding="utf-8")
+
+        # Generate component name from template and page
+        page_name = page_file.stem
+        component_name = f"{template_name.title()}{page_name.title()}Page"
+
+        # Compile to JSX
+        jsx_content = dsl_to_jsx(
+            dsl_content, include_imports=True, component_name=component_name
+        )
+
+        # Create template output directory
+        template_output_dir = OUTPUT_DIR / "templates" / template_name
+        template_output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Write to output file
+        output_path = template_output_dir / f"{page_name}.jsx"
+        output_path.write_text(jsx_content, encoding="utf-8")
+
+        print(f"Compiled {page_file} -> {output_path}")
+        return True
+
+    except Exception as e:
+        print(f"Error compiling template page {page_file}: {e}")
+        return False
+
+
+def compile_all_templates():
+    """Compile all templates."""
+    if not TEMPLATE_INPUT_DIR.exists():
+        print(f"Templates directory not found: {TEMPLATE_INPUT_DIR}")
+        return 0
+
+    compiled_count = 0
+    for template_dir in TEMPLATE_INPUT_DIR.iterdir():
+        if template_dir.is_dir() and (template_dir / "frontend").exists():
+            if compile_template(template_dir.name):
+                compiled_count += 1
+
+    print(f"Compiled {compiled_count} templates")
+    return compiled_count
+
+
 async def notify_clients():
     """Notify all connected WebSocket clients of file changes."""
     message = {"type": "files_changed", "timestamp": time.time()}
@@ -150,6 +214,7 @@ async def lifespan(app: FastAPI):
     # Startup
     load_prefabs()
     compile_all_files()
+    compile_all_templates()
     start_file_watcher()
     yield
     # Shutdown
@@ -242,6 +307,54 @@ async def compile_all():
     return {"success": True, "message": f"Compiled {count} files"}
 
 
+@app.get("/api/templates")
+async def list_templates():
+    """API endpoint to list all available templates."""
+    if not TEMPLATE_INPUT_DIR.exists():
+        return {"templates": []}
+
+    templates = []
+    for template_dir in TEMPLATE_INPUT_DIR.iterdir():
+        if template_dir.is_dir():
+            frontend_dir = template_dir / "frontend"
+            if frontend_dir.exists():
+                pages = []
+                for page_file in frontend_dir.glob("*.s"):
+                    pages.append({
+                        "name": page_file.stem,
+                        "path": str(page_file),
+                        "last_modified": page_file.stat().st_mtime
+                    })
+
+                templates.append({
+                    "name": template_dir.name,
+                    "path": str(template_dir),
+                    "pages": pages,
+                    "page_count": len(pages)
+                })
+
+    return {"templates": templates}
+
+
+@app.post("/api/templates/{template_name}/compile")
+async def compile_template_endpoint(template_name: str):
+    """API endpoint to compile a specific template."""
+    success = compile_template(template_name)
+    if success:
+        await notify_clients()
+        return {"success": True, "message": f"Compiled template '{template_name}'"}
+    else:
+        raise HTTPException(status_code=404, detail="Template not found or compilation failed")
+
+
+@app.post("/api/templates/compile-all")
+async def compile_all_templates_endpoint():
+    """API endpoint to compile all templates."""
+    count = compile_all_templates()
+    await notify_clients()
+    return {"success": True, "message": f"Compiled {count} templates"}
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time file change notifications."""
@@ -287,6 +400,7 @@ async def view_component(filename: str):
         <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
         <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
         <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+        <script src="https://cdn.tailwindcss.com"></script>
         <style>
             body {{
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -321,6 +435,184 @@ async def view_component(filename: str):
             // Render the component
             const root = ReactDOM.createRoot(document.getElementById('root'));
             root.render(<MyComponent />);
+        </script>
+    </body>
+    </html>
+    """
+
+    return HTMLResponse(html_content)
+
+
+@app.get("/template/{template_name}")
+async def view_template(template_name: str):
+    """Serve a complete template with navigation between pages."""
+    template_output_dir = OUTPUT_DIR / "templates" / template_name
+    if not template_output_dir.exists():
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    # Get all compiled pages
+    pages = []
+    for jsx_file in template_output_dir.glob("*.jsx"):
+        pages.append(jsx_file.stem)
+
+    if not pages:
+        raise HTTPException(status_code=404, detail="No compiled pages found for template")
+
+    # Sort pages for consistent navigation (Home first, then alphabetical)
+    def sort_key(page):
+        if page.lower() == "home":
+            return (0, page)
+        elif page.lower() == "index":
+            return (1, page)
+        else:
+            return (2, page)
+
+    pages.sort(key=sort_key)
+
+    # Create navigation and page content
+    nav_items = []
+    page_components = []
+
+    for i, page_name in enumerate(pages):
+        jsx_file = template_output_dir / f"{page_name}.jsx"
+        jsx_content = jsx_file.read_text(encoding="utf-8")
+
+        # Extract JSX content
+        import re
+        return_match = re.search(r"return \((.*?)\);", jsx_content, re.DOTALL)
+        jsx_body = (
+            return_match.group(1).strip()
+            if return_match
+            else "<div>Error parsing component</div>"
+        )
+
+        nav_items.append(f'<button class="nav-btn" onclick="showPage({i})">{page_name}</button>')
+        page_components.append(f"""
+            function {page_name.title()}Page() {{
+                return ({jsx_body});
+            }}
+        """)
+
+    nav_html = "\n".join(nav_items)
+    components_js = "\n".join(page_components)
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{template_name.title()} Template - Playground</title>
+        <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+        <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+        <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+            body {{
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                margin: 0;
+                padding: 0;
+                background-color: #f5f5f5;
+            }}
+            .template-container {{
+                min-height: 100vh;
+                display: flex;
+                flex-direction: column;
+            }}
+            .template-nav {{
+                background: #1e293b;
+                color: white;
+                padding: 1rem;
+                display: flex;
+                gap: 1rem;
+                align-items: center;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }}
+            .template-title {{
+                font-size: 1.5rem;
+                font-weight: bold;
+                margin-right: 2rem;
+            }}
+            .nav-btn {{
+                background: #334155;
+                color: white;
+                border: none;
+                padding: 0.5rem 1rem;
+                border-radius: 6px;
+                cursor: pointer;
+                transition: background-color 0.2s;
+            }}
+            .nav-btn:hover {{
+                background: #475569;
+            }}
+            .nav-btn.active {{
+                background: #3b82f6;
+            }}
+            .page-container {{
+                flex: 1;
+                padding: 2rem;
+                background: white;
+                margin: 1rem;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }}
+            .page-content {{
+                max-width: 1200px;
+                margin: 0 auto;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="template-container">
+            <nav class="template-nav">
+                <div class="template-title">{template_name.title()} Template</div>
+                {nav_html}
+            </nav>
+            <div class="page-container">
+                <div class="page-content">
+                    <div id="root"></div>
+                </div>
+            </div>
+        </div>
+
+        <script type="text/babel">
+            // Define all page components
+            {components_js}
+
+            // Main app component
+            function TemplateApp() {{
+                const [currentPage, setCurrentPage] = React.useState(0);
+                const pages = [{", ".join(f'"{page}"' for page in pages)}];
+
+                React.useEffect(() => {{
+                    // Update active nav button
+                    const buttons = document.querySelectorAll('.nav-btn');
+                    buttons.forEach((btn, index) => {{
+                        if (index === currentPage) {{
+                            btn.classList.add('active');
+                        }} else {{
+                            btn.classList.remove('active');
+                        }}
+                    }});
+                }}, [currentPage]);
+
+                window.showPage = (pageIndex) => {{
+                    setCurrentPage(pageIndex);
+                }};
+
+                const renderCurrentPage = () => {{
+                    switch(currentPage) {{
+                        {"".join(f"case {i}: return <{page.title()}Page />;" for i, page in enumerate(pages))}
+                        default: return <div>Page not found</div>;
+                    }}
+                }};
+
+                return renderCurrentPage();
+            }}
+
+            // Render the template app
+            const root = ReactDOM.createRoot(document.getElementById('root'));
+            root.render(<TemplateApp />);
         </script>
     </body>
     </html>

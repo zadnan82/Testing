@@ -1,5 +1,6 @@
 // =============================================================================
-// 2. user_frontend/src/pages/projects/SevdoBuilderPage.jsx (UPDATED - User Friendly)
+// ENHANCED: user_frontend/src/pages/projects/SevdoBuilderPage.jsx 
+// Added comprehensive preview system (before + after generation)
 // =============================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -18,7 +19,9 @@ import {
   Eye,
   FileCode,
   Layers,
-  Wand2
+  Wand2,
+  ExternalLink,
+  Globe
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -31,6 +34,8 @@ import {
   generateProjectDescription,
   USER_FEATURES 
 } from '../../utils/featureMapping';
+import DynamicCodePreview from './DynamicCodePreview';
+ 
 
 const SevdoBuilderPage = ({ onBack }) => {
   const [selectedFeatures, setSelectedFeatures] = useState([]);
@@ -39,7 +44,7 @@ const SevdoBuilderPage = ({ onBack }) => {
   const [generatedCode, setGeneratedCode] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(false); 
   const toast = useToast();
 
   const toggleFeature = (featureId) => {
@@ -51,69 +56,59 @@ const SevdoBuilderPage = ({ onBack }) => {
     setError('');
   };
 
-  // Key changes to SevdoBuilderPage.jsx - UPDATE YOUR generateProject function
+  const generateProject = async () => {
+    if (selectedFeatures.length === 0 && !customDescription.trim()) {
+      setError('Please select at least one feature or describe what you want');
+      return;
+    }
 
-const generateProject = async () => {
-  if (selectedFeatures.length === 0 && !customDescription.trim()) {
-    setError('Please select at least one feature or describe what you want');
-    return;
-  }
+    if (!projectName.trim()) {
+      setError('Please enter a project name');
+      return;
+    }
 
-  if (!projectName.trim()) {
-    setError('Please enter a project name');
-    return;
-  }
-
-  setLoading(true);
-  setError('');
-  
-  try {
-    let result;
+    setLoading(true);
+    setError('');
     
-    if (customDescription.trim()) {
-      // Use AI generation for custom descriptions
-      result = await sevdoService.generateFromDescription(
-        customDescription, 
-        'WEB_APP'
-      );
-    } else {
-      // Convert selected features to tokens (hidden from user)
-      const tokens = getTokensFromFeatures(selectedFeatures);
-      console.log('🔧 Converting features to tokens:', selectedFeatures, '->', tokens);
+    try {
+      let result;
       
-      // 🚀 KEY CHANGE: Pass selectedFeatures as third parameter
-      result = await sevdoService.generateProject(
-        projectName,
-        tokens,
-        selectedFeatures, // ✅ This enables frontend generation!
-        true
-      );
-    }
-    
-    setGeneratedCode({ type: 'project', ...result });
-    console.log('🐛 DEBUG: Full generated result:', result);
-    console.log('🐛 DEBUG: Backend success:', result?.backend?.success);
-    console.log('🐛 DEBUG: Frontend success:', result?.frontend?.success);
-    console.log('🐛 DEBUG: Backend code length:', result?.backend?.code?.length || 0);
-    console.log('🐛 DEBUG: Frontend code length:', result?.frontend?.code?.length || 0);
+      if (customDescription.trim()) {
+        result = await sevdoService.generateFromDescription(
+          customDescription, 
+          'WEB_APP'
+        );
+      } else {
+        const tokens = getTokensFromFeatures(selectedFeatures);
+        console.log('🔧 Converting features to tokens:', selectedFeatures, '->', tokens);
+        
+        result = await sevdoService.generateProject(
+          projectName,
+          tokens,
+          selectedFeatures,
+          true
+        );
+      }
+      
+      setGeneratedCode({ type: 'project', ...result });
+      console.log('🛠 DEBUG: Full generated result:', result);
 
-    // Show success message with details
-    if (result.backend && result.frontend) {
-      toast.success('🎉 Complete website generated with backend AND frontend code!');
-    } else if (result.backend) {
-      toast.success('✅ Backend generated! Frontend needs additional setup.');
-    } else if (result.frontend) {
-      toast.success('✅ Frontend generated! Backend needs additional setup.');
+      if (result.backend && result.frontend) {
+        toast.success('🎉 Complete website generated with backend AND frontend code!');
+      } else if (result.backend) {
+        toast.success('✅ Backend generated! Frontend needs additional setup.');
+      } else if (result.frontend) {
+        toast.success('✅ Frontend generated! Backend needs additional setup.');
+      }
+      
+    } catch (err) {
+      console.error('Project generation failed:', err);
+      setError(err.message || 'Project generation failed');
+      toast.error('Failed to generate project');
+    } finally {
+      setLoading(false);
     }
-    
-  } catch (err) {
-    console.error('Project generation failed:', err);
-    setError(err.message || 'Project generation failed');
-    toast.error('Failed to generate project');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const copyToClipboard = async (text) => {
     try {
@@ -142,6 +137,7 @@ const generateProject = async () => {
   const featuresByCategory = getFeaturesByCategory();
   const selectedFeatureObjects = selectedFeatures.map(id => USER_FEATURES[id]).filter(Boolean);
 
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-7xl mx-auto">
@@ -159,9 +155,9 @@ const generateProject = async () => {
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full mb-4">
               <Sparkles className="h-8 w-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">🚀 Website Builder</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">🚀 Advanced Website Builder</h1>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              Select the features you want for your website. We'll generate production-ready code instantly.
+              Select features or describe your requirements. Preview your website before generating production-ready code.
             </p>
           </div>
         </div>
@@ -327,8 +323,9 @@ const generateProject = async () => {
             </Card>
           </div>
 
-          {/* Right Column - Actions & Preview */}
+          {/* Right Column - Actions   */}
           <div className="space-y-6">
+           
             {/* Generation Actions */}
             <Card className="!p-6">
               <Card.Header>
@@ -345,7 +342,7 @@ const generateProject = async () => {
                   size="lg"
                 >
                   <Sparkles className="h-5 w-5 mr-2" />
-                  {loading ? 'Creating Your Website...' : 'Generate Website'}
+                  {loading ? 'Creating Your Website...' : 'Generate Website Code'}
                 </Button>
 
                 {/* Generation Progress */}
@@ -353,19 +350,19 @@ const generateProject = async () => {
                   <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg border">
                     <div className="text-sm text-purple-900 mb-2 flex items-center">
                       <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                      Building your website with the selected features...
+                      Building "{projectName}" with the selected features...
                     </div>
                     <div className="w-full bg-purple-200 rounded-full h-2">
                       <div className="bg-gradient-to-r from-purple-600 to-blue-600 h-2 rounded-full animate-pulse" style={{width: '70%'}}></div>
                     </div>
                     <div className="text-xs text-purple-700 mt-2">
-                      ✨ Converting your features into production-ready code
+                      Converting your features into production-ready code
                     </div>
                   </div>
                 )}
 
                 <div className="text-xs text-center text-gray-500 border-t pt-3">
-                  🎯 Your website will include working backend API, database models, and frontend components
+                  Your website will include working backend API, database models, and frontend components
                 </div>
               </Card.Content>
             </Card>
@@ -375,8 +372,8 @@ const generateProject = async () => {
               <Card className="!p-6">
                 <Card.Header>
                   <Card.Title className="flex items-center">
-                    <Eye className="h-5 w-5 mr-2" />
-                    Project Preview
+                    <FileCode className="h-5 w-5 mr-2" />
+                    Project Summary
                   </Card.Title>
                 </Card.Header>
                 <Card.Content>
@@ -414,12 +411,12 @@ const generateProject = async () => {
                     <div className="pt-3 border-t">
                       <span className="font-medium text-gray-700">What You'll Get:</span>
                       <ul className="mt-2 text-gray-600 space-y-1">
-                        <li>✅ Complete backend API</li>
-                        <li>✅ Database models & migrations</li>
-                        <li>✅ User authentication system</li>
-                        <li>✅ Admin panel (if selected)</li>
-                        <li>✅ Frontend components</li>
-                        <li>✅ Production-ready code</li>
+                        <li>• Complete backend API</li>
+                        <li>• Database models & migrations</li>
+                        <li>• User authentication system</li>
+                        <li>• Admin panel (if selected)</li>
+                        <li>• Frontend components</li>
+                        <li>• Production-ready code</li>
                       </ul>
                     </div>
                     
@@ -438,44 +435,30 @@ const generateProject = async () => {
           </div>
         </div>
 
-       // user_frontend/src/pages/projects/SevdoBuilderPage.jsx - FIXED DISPLAY VERSION
-
-// Only showing the UPDATED parts that need to change:
-
-// 1. UPDATE: Enhanced generation result display
+{/* Generated Code Section */}
 {generatedCode && (
   <div className="mt-8 space-y-6">
-
-     <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded text-sm">
-      <h4 className="font-bold mb-2">🐛 DEBUG INFO (remove this later):</h4>
-      <div>Backend Success: {String(generatedCode?.backend?.success)}</div>
-      <div>Frontend Success: {String(generatedCode?.frontend?.success)}</div>
-      <div>Backend Code: {generatedCode?.backend?.code ? `${generatedCode.backend.code.length} chars` : 'None'}</div>
-      <div>Frontend Code: {generatedCode?.frontend?.code ? `${generatedCode.frontend.code.length} chars` : 'None'}</div>
-      <div>Errors: {JSON.stringify(generatedCode?.errors || [])}</div>
-    </div>
-    
     {/* Success Summary */}
     <Card className="!p-6">
       <Card.Header>
         <Card.Title className="flex items-center">
           <Check className="h-5 w-5 mr-2 text-green-600" />
-          🎉 Your Complete Website is Ready!
+          Your Website is Ready!
         </Card.Title>
       </Card.Header>
       <Card.Content>
         <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <h3 className="text-green-800 font-semibold mb-2">✅ Generation Complete!</h3>
+          <h3 className="text-green-800 font-semibold mb-2">Generation Complete!</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
             <div className="text-center">
               <div className={`text-2xl font-bold ${generatedCode.backend?.success ? 'text-green-600' : 'text-gray-400'}`}>
-                {generatedCode.backend?.success ? '✅' : '❌'}
+                {generatedCode.backend?.success ? '✓' : '✗'}
               </div>
               <div className="text-xs">Backend API</div>
             </div>
             <div className="text-center">
               <div className={`text-2xl font-bold ${generatedCode.frontend?.success ? 'text-blue-600' : 'text-gray-400'}`}>
-                {generatedCode.frontend?.success ? '✅' : '❌'}
+                {generatedCode.frontend?.success ? '✓' : '✗'}
               </div>
               <div className="text-xs">Frontend UI</div>
             </div>
@@ -483,261 +466,265 @@ const generateProject = async () => {
               <div className={`text-2xl font-bold ${(generatedCode.backend?.success && generatedCode.frontend?.success) ? 'text-purple-600' : 'text-orange-500'}`}>
                 {(generatedCode.backend?.success && generatedCode.frontend?.success) ? '🚀' : '⚡'}
               </div>
-              <div className="text-xs">
-                {(generatedCode.backend?.success && generatedCode.frontend?.success) ? 'Full Stack' : 'Partial'}
-              </div>
+              <div className="text-xs">Status</div>
             </div>
           </div>
         </div>
-
-        {/* Error Display */}
-        {generatedCode.errors && generatedCode.errors.length > 0 && (
-          <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded">
-            <h4 className="font-medium text-orange-800 mb-2">Issues Found:</h4>
-            {generatedCode.errors.map((error, index) => (
-              <div key={index} className="text-sm text-orange-700 mb-1">• {error}</div>
-            ))}
-          </div>
-        )}
       </Card.Content>
     </Card>
 
-    {/* Backend Code Display */}
-    {generatedCode.backend?.success && generatedCode.backend?.code && (
-      <Card className="!p-6">
-        <Card.Header>
-          <div className="flex justify-between items-center">
-            <Card.Title className="flex items-center">
-              <Code className="h-5 w-5 mr-2" />
-              🐍 Backend Code (Python FastAPI)
-            </Card.Title>
-            <div className="flex space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => copyToClipboard(generatedCode.backend.code)}
-              >
-                {copied ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
-                {copied ? 'Copied!' : 'Copy'}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => downloadCode(
-                  generatedCode.backend.code,
-                  `${projectName.replace(/\s+/g, '_').toLowerCase()}_backend.py`
-                )}
-              >
-                <Download className="h-4 w-4 mr-1" />
-                Download
-              </Button>
-            </div>
-          </div>
-        </Card.Header>
-        <Card.Content>
-          <div className="bg-gray-900 rounded-lg overflow-hidden">
-            <div className="bg-gray-800 px-4 py-2 flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              </div>
-              <div className="text-gray-400 text-sm font-mono">backend.py</div>
-            </div>
-            <pre className="text-green-400 p-4 overflow-auto max-h-96 text-sm">
-              {generatedCode.backend.code}
-            </pre>
-          </div>
-          <div className="mt-4 text-sm text-gray-600">
-            <p>✅ FastAPI backend with authentication</p>
-            <p>✅ Database models and migrations</p>
-            <p>✅ RESTful API endpoints</p>
-            <p>✅ JWT token management</p>
-          </div>
-        </Card.Content>
-      </Card>
-    )}
+    {/* Dynamic Code Preview - NEW! */}
+    <Card className="!p-6">
+      <Card.Header>
+        <Card.Title className="flex items-center">
+          <Eye className="h-5 w-5 mr-2" />
+          Live Website Preview (Generated Code)
+        </Card.Title>
+      </Card.Header>
+      <Card.Content>
+        <DynamicCodePreview 
+          generatedCode={generatedCode} 
+          projectName={projectName}
+        />
+      </Card.Content>
+    </Card>
 
-    {/* Frontend Code Display - NEW! */}
-    {generatedCode.frontend?.success && generatedCode.frontend?.code && (
-      <Card className="!p-6">
-        <Card.Header>
-          <div className="flex justify-between items-center">
-            <Card.Title className="flex items-center">
-              <Code className="h-5 w-5 mr-2" />
-              ⚛️ Frontend Code (React JSX)
-            </Card.Title>
-            <div className="flex space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => copyToClipboard(generatedCode.frontend.code)}
-              >
-                {copied ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
-                Copy Frontend
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => downloadCode(
-                  generatedCode.frontend.code,
-                  `${projectName.replace(/\s+/g, '_').toLowerCase()}_components.jsx`
-                )}
-              >
-                <Download className="h-4 w-4 mr-1" />
-                Download
-              </Button>
-            </div>
-          </div>
-        </Card.Header>
-        <Card.Content>
-          <div className="bg-gray-900 rounded-lg overflow-hidden">
-            <div className="bg-gray-800 px-4 py-2 flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              </div>
-              <div className="text-gray-400 text-sm font-mono">
-                {generatedCode.frontend.component_name || 'Components'}.jsx
-              </div>
-            </div>
-            <pre className="text-blue-400 p-4 overflow-auto max-h-96 text-sm">
-              {generatedCode.frontend.code}
-            </pre>
-          </div>
-          <div className="mt-4 text-sm text-gray-600">
-            <p>✅ React components with Tailwind CSS</p>
-            <p>✅ Responsive design and forms</p>
-            <p>✅ Login and registration components</p>
-            <p>✅ Ready for production use</p>
-          </div>
-        </Card.Content>
-      </Card>
-    )}
+            {/* Backend Code Display */}
+            {generatedCode.backend?.success && generatedCode.backend?.code && (
+              <Card className="!p-6">
+                <Card.Header>
+                  <div className="flex justify-between items-center">
+                    <Card.Title className="flex items-center">
+                      <Code className="h-5 w-5 mr-2" />
+                      Backend Code (Python FastAPI)
+                    </Card.Title>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(generatedCode.backend.code)}
+                      >
+                        {copied ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
+                        {copied ? 'Copied!' : 'Copy'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => downloadCode(
+                          generatedCode.backend.code,
+                          `${projectName.replace(/\s+/g, '_').toLowerCase()}_backend.py`
+                        )}
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        Download
+                      </Button>
+                    </div>
+                  </div>
+                </Card.Header>
+                <Card.Content>
+                  <div className="bg-gray-900 rounded-lg overflow-hidden">
+                    <div className="bg-gray-800 px-4 py-2 flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                        <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      </div>
+                      <div className="text-gray-400 text-sm font-mono">backend.py</div>
+                    </div>
+                    <pre className="text-green-400 p-4 overflow-auto max-h-96 text-sm">
+                      {generatedCode.backend.code}
+                    </pre>
+                  </div>
+                  <div className="mt-4 text-sm text-gray-600">
+                    <p>• FastAPI backend with authentication</p>
+                    <p>• Database models and migrations</p>
+                    <p>• RESTful API endpoints</p>
+                    <p>• JWT token management</p>
+                  </div>
+                </Card.Content>
+              </Card>
+            )}
 
-    {/* Complete Package Summary */}
-    {(generatedCode.backend?.success || generatedCode.frontend?.success) && (
-      <Card className="!p-6">
-        <Card.Header>
-          <Card.Title>📦 Complete Package Summary</Card.Title>
-        </Card.Header>
-        <Card.Content>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">
-                {generatedCode.backend?.success ? '1' : '0'}
-              </div>
-              <div className="text-sm text-green-700">Backend API</div>
-            </div>
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">
-                {generatedCode.frontend?.success ? '1' : '0'}
-              </div>
-              <div className="text-sm text-blue-700">Frontend UI</div>
-            </div>
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <div className="text-2xl font-bold text-purple-600">
-                {selectedFeatures.length}
-              </div>
-              <div className="text-sm text-purple-700">Features Built</div>
-            </div>
-            <div className="text-center p-4 bg-orange-50 rounded-lg">
-              <div className="text-2xl font-bold text-orange-600">Ready</div>
-              <div className="text-sm text-orange-700">Production</div>
-            </div>
-          </div>
+            {/* Frontend Code Display */}
+            {generatedCode.frontend?.success && generatedCode.frontend?.code && (
+              <Card className="!p-6">
+                <Card.Header>
+                  <div className="flex justify-between items-center">
+                    <Card.Title className="flex items-center">
+                      <Code className="h-5 w-5 mr-2" />
+                      Frontend Code (React JSX)
+                    </Card.Title>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(generatedCode.frontend.code)}
+                      >
+                        {copied ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
+                        Copy Frontend
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => downloadCode(
+                          generatedCode.frontend.code,
+                          `${projectName.replace(/\s+/g, '_').toLowerCase()}_components.jsx`
+                        )}
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        Download
+                      </Button>
+                    </div>
+                  </div>
+                </Card.Header>
+                <Card.Content>
+                  <div className="bg-gray-900 rounded-lg overflow-hidden">
+                    <div className="bg-gray-800 px-4 py-2 flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                        <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      </div>
+                      <div className="text-gray-400 text-sm font-mono">
+                        {generatedCode.frontend.component_name || 'Components'}.jsx
+                      </div>
+                    </div>
+                    <pre className="text-blue-400 p-4 overflow-auto max-h-96 text-sm">
+                      {generatedCode.frontend.code}
+                    </pre>
+                  </div>
+                  <div className="mt-4 text-sm text-gray-600">
+                    <p>• React components with Tailwind CSS</p>
+                    <p>• Responsive design and forms</p>
+                    <p>• Login and registration components</p>
+                    <p>• Ready for production use</p>
+                  </div>
+                </Card.Content>
+              </Card>
+            )}
 
-          {/* What's Included */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {generatedCode.backend?.success && (
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">🐍 Backend Includes:</h4>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• FastAPI application server</li>
-                  <li>• User authentication endpoints</li>
-                  <li>• Database models & migrations</li>
-                  <li>• JWT token management</li>
-                  <li>• Password hashing & security</li>
-                  <li>• Session management</li>
-                </ul>
+            {/* Complete Package Summary */}
+            {(generatedCode.backend?.success || generatedCode.frontend?.success) && (
+              <Card className="!p-6">
+                <Card.Header>
+                  <Card.Title>Complete Package Summary</Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div className="text-center p-4 bg-green-50 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600">
+                        {generatedCode.backend?.success ? '1' : '0'}
+                      </div>
+                      <div className="text-sm text-green-700">Backend API</div>
+                    </div>
+                    <div className="text-center p-4 bg-blue-50 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {generatedCode.frontend?.success ? '1' : '0'}
+                      </div>
+                      <div className="text-sm text-blue-700">Frontend UI</div>
+                    </div>
+                    <div className="text-center p-4 bg-purple-50 rounded-lg">
+                      <div className="text-2xl font-bold text-purple-600">
+                        {selectedFeatures.length}
+                      </div>
+                      <div className="text-sm text-purple-700">Features Built</div>
+                    </div>
+                    <div className="text-center p-4 bg-orange-50 rounded-lg">
+                      <div className="text-2xl font-bold text-orange-600">Ready</div>
+                      <div className="text-sm text-orange-700">Production</div>
+                    </div>
+                  </div>
+
+                  {/* What's Included */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {generatedCode.backend?.success && (
+                      <div>
+                        <h4 className="font-semibold text-gray-900 mb-2">Backend Includes:</h4>
+                        <ul className="text-sm text-gray-600 space-y-1">
+                          <li>• FastAPI application server</li>
+                          <li>• User authentication endpoints</li>
+                          <li>• Database models & migrations</li>
+                          <li>• JWT token management</li>
+                          <li>• Password hashing & security</li>
+                          <li>• Session management</li>
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {generatedCode.frontend?.success && (
+                      <div>
+                        <h4 className="font-semibold text-gray-900 mb-2">Frontend Includes:</h4>
+                        <ul className="text-sm text-gray-600 space-y-1">
+                          <li>• React functional components</li>
+                          <li>• Login & registration forms</li>
+                          <li>• Tailwind CSS styling</li>
+                          <li>• Form validation & UX</li>
+                          <li>• Responsive mobile design</li>
+                          <li>• Production-ready JSX</li>
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Next Steps */}
+                  <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                    <h4 className="font-semibold text-blue-900 mb-2">Next Steps:</h4>
+                    <div className="text-sm text-blue-800 space-y-1">
+                      {generatedCode.backend?.success && (
+                        <>
+                          <p>1. Save the backend code as a Python file</p>
+                          <p>2. Install dependencies: <code className="bg-blue-100 px-1 rounded">pip install fastapi uvicorn sqlalchemy</code></p>
+                          <p>3. Run backend: <code className="bg-blue-100 px-1 rounded">uvicorn main:app --reload</code></p>
+                        </>
+                      )}
+                      {generatedCode.frontend?.success && (
+                        <>
+                          <p>4. Save the frontend code as JSX components</p>
+                          <p>5. Set up React app: <code className="bg-blue-100 px-1 rounded">npx create-react-app my-app</code></p>
+                          <p>6. Add Tailwind CSS for styling</p>
+                        </>
+                      )}
+                      {(generatedCode.backend?.success && generatedCode.frontend?.success) && (
+                        <p className="font-medium">You now have a complete full-stack application!</p>
+                      )}
+                    </div>
+                  </div>
+                </Card.Content>
+              </Card>
+            )}
+
+            {/* Download All Button */}
+            {(generatedCode.backend?.success || generatedCode.frontend?.success) && (
+              <div className="text-center">
+                <Button
+                  onClick={() => {
+                    // Download backend
+                    if (generatedCode.backend?.success) {
+                      downloadCode(
+                        generatedCode.backend.code,
+                        `${projectName.replace(/\s+/g, '_').toLowerCase()}_backend.py`
+                      );
+                    }
+                    // Download frontend
+                    if (generatedCode.frontend?.success) {
+                      setTimeout(() => {
+                        downloadCode(
+                          generatedCode.frontend.code,
+                          `${projectName.replace(/\s+/g, '_').toLowerCase()}_frontend.jsx`
+                        );
+                      }, 100);
+                    }
+                  }}
+                  className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700"
+                  size="lg"
+                >
+                  <Download className="h-5 w-5 mr-2" />
+                  Download Complete Project
+                </Button>
               </div>
             )}
-            
-            {generatedCode.frontend?.success && (
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">⚛️ Frontend Includes:</h4>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• React functional components</li>
-                  <li>• Login & registration forms</li>
-                  <li>• Tailwind CSS styling</li>
-                  <li>• Form validation & UX</li>
-                  <li>• Responsive mobile design</li>
-                  <li>• Production-ready JSX</li>
-                </ul>
-              </div>
-            )}
           </div>
-
-          {/* Next Steps */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <h4 className="font-semibold text-blue-900 mb-2">🚀 Next Steps:</h4>
-            <div className="text-sm text-blue-800 space-y-1">
-              {generatedCode.backend?.success && (
-                <>
-                  <p>1. Save the backend code as a Python file</p>
-                  <p>2. Install dependencies: <code className="bg-blue-100 px-1 rounded">pip install fastapi uvicorn sqlalchemy</code></p>
-                  <p>3. Run backend: <code className="bg-blue-100 px-1 rounded">uvicorn main:app --reload</code></p>
-                </>
-              )}
-              {generatedCode.frontend?.success && (
-                <>
-                  <p>4. Save the frontend code as JSX components</p>
-                  <p>5. Set up React app: <code className="bg-blue-100 px-1 rounded">npx create-react-app my-app</code></p>
-                  <p>6. Add Tailwind CSS for styling</p>
-                </>
-              )}
-              {(generatedCode.backend?.success && generatedCode.frontend?.success) && (
-                <p className="font-medium">🎉 You now have a complete full-stack application!</p>
-              )}
-            </div>
-          </div>
-        </Card.Content>
-      </Card>
-    )}
-
-    {/* Download All Button */}
-    {(generatedCode.backend?.success || generatedCode.frontend?.success) && (
-      <div className="text-center">
-        <Button
-          onClick={() => {
-            // Download backend
-            if (generatedCode.backend?.success) {
-              downloadCode(
-                generatedCode.backend.code,
-                `${projectName.replace(/\s+/g, '_').toLowerCase()}_backend.py`
-              );
-            }
-            // Download frontend
-            if (generatedCode.frontend?.success) {
-              setTimeout(() => {
-                downloadCode(
-                  generatedCode.frontend.code,
-                  `${projectName.replace(/\s+/g, '_').toLowerCase()}_frontend.jsx`
-                );
-              }, 100);
-            }
-          }}
-          className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700"
-          size="lg"
-        >
-          <Download className="h-5 w-5 mr-2" />
-          Download Complete Project
-        </Button>
-      </div>
-    )}
-  </div>
-)}
+        )}
       </div>
     </div>
   );

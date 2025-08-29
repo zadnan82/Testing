@@ -50,10 +50,21 @@
         margin-top: 30px;
       }
 
+      .templates-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 20px;
+        margin-top: 30px;
+      }
+
       @media (max-width: 768px) {
         .main-layout {
           grid-template-columns: 1fr;
           gap: 20px;
+        }
+        .templates-layout {
+          grid-template-columns: 1fr;
+          gap: 15px;
         }
       }
 
@@ -107,6 +118,40 @@
       }
 
       .file-meta {
+        font-size: 0.9rem;
+        color: #64748b;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .template-item {
+        padding: 20px;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        background: #f8fafc;
+        transition: all 0.2s ease;
+        cursor: pointer;
+      }
+
+      .template-item:hover {
+        border-color: #10b981;
+        background: #f0fdf4;
+      }
+
+      .template-item.active {
+        border-color: #10b981;
+        background: #dcfce7;
+      }
+
+      .template-name {
+        font-weight: 600;
+        font-size: 1.2rem;
+        color: #1e293b;
+        margin-bottom: 8px;
+      }
+
+      .template-meta {
         font-size: 0.9rem;
         color: #64748b;
         display: flex;
@@ -285,15 +330,19 @@
     <div class="container">
       <div class="header">
         <h1>🎮 Frontend DSL Playground</h1>
-        <p>Create and test frontend components using simple DSL syntax</p>
+        <p>Create and test frontend components and complete website templates using simple DSL syntax</p>
       </div>
 
       <div class="instructions">
         <h3>🚀 Quick Start</h3>
         <ul>
           <li>
-            Create <code class="dsl-syntax">.txt</code> files in the
+            <strong>Components:</strong> Create <code class="dsl-syntax">.txt</code> files in
             <code class="dsl-syntax">input_files/</code> folder
+          </li>
+          <li>
+            <strong>Templates:</strong> Use <code class="dsl-syntax">.s</code> files in
+            <code class="dsl-syntax">templates/</code> directories
           </li>
           <li>
             Use DSL syntax like <code class="dsl-syntax">h(Title)</code>,
@@ -301,14 +350,14 @@
             <code class="dsl-syntax">i(input)</code>
           </li>
           <li>Files are automatically compiled to React components</li>
-          <li>Click "View" to see your component in the browser</li>
+          <li>Click "View" to see components or "Test Template" to explore complete websites</li>
         </ul>
       </div>
 
-      <div class="main-layout">
-        <!-- Input Files Panel -->
+      <div class="templates-layout">
+        <!-- Components Panel -->
         <div class="panel">
-          <h2>📁 Input Files</h2>
+          <h2>🧩 Components</h2>
           <div id="files-list" class="file-list">
             <div class="loading">Loading files...</div>
           </div>
@@ -322,12 +371,28 @@
           </div>
         </div>
 
+        <!-- Templates Panel -->
+        <div class="panel">
+          <h2>🏗️ Templates</h2>
+          <div id="templates-list" class="file-list">
+            <div class="loading">Loading templates...</div>
+          </div>
+          <div class="file-actions" style="margin-top: 20px">
+            <button class="btn btn-success" onclick="compileAllTemplates()">
+              🔄 Compile All Templates
+            </button>
+            <button class="btn btn-secondary" onclick="refreshTemplates()">
+              ↻ Refresh
+            </button>
+          </div>
+        </div>
+
         <!-- Preview Panel -->
         <div class="panel">
           <h2>👀 Preview</h2>
           <div class="preview-container">
             <div class="preview-header">
-              <span id="preview-title">Select a file to preview</span>
+              <span id="preview-title">Select a component or template to preview</span>
               <div>
                 <button
                   class="btn btn-primary"
@@ -335,7 +400,15 @@
                   style="display: none"
                   onclick="viewSelectedFile()"
                 >
-                  🌐 View Full Page
+                  🌐 View Component
+                </button>
+                <button
+                  class="btn btn-primary"
+                  id="view-template-btn"
+                  style="display: none"
+                  onclick="viewSelectedTemplate()"
+                >
+                  🏗️ Test Template
                 </button>
               </div>
             </div>
@@ -354,6 +427,7 @@
 
     <script>
       let selectedFile = null;
+      let selectedTemplate = null;
       let ws = null;
 
       // Connect to WebSocket for real-time updates
@@ -409,6 +483,19 @@
         }
       }
 
+      // Load templates list
+      async function loadTemplates() {
+        try {
+          const response = await fetch("/api/templates");
+          const data = await response.json();
+          renderTemplatesList(data.templates);
+        } catch (error) {
+          console.error("Error loading templates:", error);
+          document.getElementById("templates-list").innerHTML =
+            '<div class="empty-state"><h3>Error loading templates</h3><p>Check the console for details</p></div>';
+        }
+      }
+
       function renderFilesList(files) {
         const container = document.getElementById("files-list");
 
@@ -455,19 +542,88 @@
           .join("");
       }
 
+      function renderTemplatesList(templates) {
+        const container = document.getElementById("templates-list");
+
+        if (templates.length === 0) {
+          container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No templates found</h3>
+                        <p>Create template directories in the main <code>templates/</code> folder with <code>frontend/</code> subdirectories containing <code>.s</code> files</p>
+                    </div>
+                `;
+          return;
+        }
+
+        container.innerHTML = templates
+          .map(
+            (template) => `
+                <div class="template-item ${
+                  selectedTemplate === template.name ? "active" : ""
+                }" onclick="selectTemplate('${template.name}')">
+                    <div class="template-name">${template.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+                    <div class="template-meta">
+                        <span>${template.page_count} pages</span>
+                        <span>✅ Ready</span>
+                    </div>
+                    <div class="file-actions">
+                        <button class="btn btn-primary" onclick="event.stopPropagation(); compileTemplate('${template.name}')">
+                            ⚡ Compile
+                        </button>
+                        <button class="btn btn-secondary" onclick="event.stopPropagation(); viewTemplate('${template.name}')">
+                            👁️ View
+                        </button>
+                    </div>
+                </div>
+            `
+          )
+          .join("");
+      }
+
       function selectFile(filename) {
         selectedFile = filename;
+        selectedTemplate = null; // Clear template selection
 
         // Update UI
         document.querySelectorAll(".file-item").forEach((item) => {
+          item.classList.remove("active");
+        });
+        document.querySelectorAll(".template-item").forEach((item) => {
           item.classList.remove("active");
         });
         document
           .querySelector(`[onclick="selectFile('${filename}')"]`)
           .classList.add("active");
 
+        // Update buttons
+        document.getElementById("view-btn").style.display = "block";
+        document.getElementById("view-template-btn").style.display = "none";
+
         // Load preview
         loadFilePreview(filename);
+      }
+
+      function selectTemplate(templateName) {
+        selectedTemplate = templateName;
+        selectedFile = null; // Clear file selection
+
+        // Update UI
+        document.querySelectorAll(".file-item").forEach((item) => {
+          item.classList.remove("active");
+        });
+        document.querySelectorAll(".template-item").forEach((item) => {
+          item.classList.remove("active");
+        });
+        document
+          .querySelector(`[onclick="selectTemplate('${templateName}')"]`)
+          .classList.add("active");
+
+        // Update buttons
+        document.getElementById("view-btn").style.display = "none";
+        document.getElementById("view-template-btn").style.display = "block";
+
+        // Update preview title
+        document.getElementById("preview-title").textContent = `Template: ${templateName}`;
       }
 
       async function loadFilePreview(filename) {
@@ -496,6 +652,58 @@
 
       function viewFile(filename) {
         window.open(`/view/${filename}`, "_blank");
+      }
+
+      async function compileTemplate(templateName) {
+        try {
+          const response = await fetch(`/api/templates/${templateName}/compile`, {
+            method: "POST",
+          });
+          const result = await response.json();
+
+          if (result.success) {
+            showStatus(result.message, "success");
+            loadTemplates();
+          } else {
+            showStatus("Compilation failed", "warning");
+          }
+        } catch (error) {
+          console.error("Error compiling template:", error);
+          showStatus("Error compiling template", "warning");
+        }
+      }
+
+      function viewTemplate(templateName) {
+        window.open(`/template/${templateName}`, "_blank");
+      }
+
+      async function compileAllTemplates() {
+        try {
+          const response = await fetch("/api/templates/compile-all", {
+            method: "POST",
+          });
+          const result = await response.json();
+
+          if (result.success) {
+            showStatus(result.message, "success");
+            loadTemplates();
+          } else {
+            showStatus("Compilation failed", "warning");
+          }
+        } catch (error) {
+          console.error("Error compiling templates:", error);
+          showStatus("Error compiling templates", "warning");
+        }
+      }
+
+      function refreshTemplates() {
+        loadTemplates();
+      }
+
+      function viewSelectedTemplate() {
+        if (selectedTemplate) {
+          viewTemplate(selectedTemplate);
+        }
       }
 
       async function compileFile(filename) {
@@ -562,6 +770,7 @@
       document.addEventListener("DOMContentLoaded", function () {
         connectWebSocket();
         loadFiles();
+        loadTemplates();
       });
     </script>
   </body>

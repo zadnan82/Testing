@@ -1,9 +1,7 @@
 # user_backend/app/services/sevdo_service.py - UPDATED VERSION
 
 import httpx
-import tempfile
 import os
-from pathlib import Path
 from typing import List, Dict, Any
 from user_backend.app.core.logging_config import StructuredLogger
 

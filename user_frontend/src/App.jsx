@@ -8,7 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/ui/Toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoadingScreen from './components/LoadingScreen';
-import ErrorScreen from './components/ErrorScreen'; // FIXED: Added missing import
+import ErrorScreen from './components/ErrorScreen';
 
 // Pages
 import LoginPage from './pages/auth/LoginPage';
@@ -21,16 +21,17 @@ import { apiClient } from './services/api';
 
 // Route constants
 export const ROUTES = {
-  LOGIN: 'login',
-  REGISTER: 'register',
-  FORGOT_PASSWORD: 'forgot',
-  DASHBOARD: 'dashboard'
+  LOGIN: '/login',
+  REGISTER: '/register',
+  FORGOT_PASSWORD: '/forgot-password',
+  DASHBOARD: '/dashboard',
+  HOME: '/'
 };
 
-// Simple routing hook
-const useSimpleRouter = () => {
-  const [currentRoute, setCurrentRoute] = useState(() => {
-    const hash = window.location.hash.slice(1);
+// Browser history-based routing hook
+const useBrowserRouter = () => {
+  const [currentPath, setCurrentPath] = useState(() => {
+    const path = window.location.pathname;
     const searchParams = new URLSearchParams(window.location.search);
     const redirectAfterLogin = searchParams.get('redirect');
     
@@ -38,31 +39,103 @@ const useSimpleRouter = () => {
       sessionStorage.setItem('redirectAfterLogin', redirectAfterLogin);
     }
     
-    return hash || ROUTES.LOGIN;
+    return path;
   });
 
-  const navigate = (route, replace = false) => {
-    setCurrentRoute(route);
+  const navigate = (path, replace = false) => {
+    setCurrentPath(path);
     
     if (replace) {
-      window.history.replaceState(null, '', `#${route}`);
+      window.history.replaceState(null, '', path);
     } else {
-      window.history.pushState(null, '', `#${route}`);
+      window.history.pushState(null, '', path);
     }
   };
 
+  const navigateWithQuery = (path, queryParams = {}, replace = false) => {
+    const url = new URL(path, window.location.origin);
+    Object.entries(queryParams).forEach(([key, value]) => {
+      if (value !== null && value !== undefined) {
+        url.searchParams.set(key, value);
+      }
+    });
+    
+    const fullPath = url.pathname + url.search;
+    navigate(fullPath, replace);
+  };
+
   useEffect(() => {
-    const handlePopState = () => {
-      const hash = window.location.hash.slice(1);
-      setCurrentRoute(hash || ROUTES.LOGIN);
+    const handlePopState = (event) => {
+      setCurrentPath(window.location.pathname);
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  return { currentRoute, navigate };
+  return { 
+    currentPath, 
+    navigate, 
+    navigateWithQuery,
+    searchParams: new URLSearchParams(window.location.search)
+  };
 };
+
+// Route matcher utility
+const matchRoute = (currentPath, routePath) => {
+  // Exact match for simple routes
+  if (currentPath === routePath) return { match: true, params: {} };
+  
+  // Handle root path
+  if (currentPath === '/' || currentPath === '') {
+    return { match: routePath === ROUTES.HOME, params: {} };
+  }
+  
+  // Handle dynamic routes (for future expansion)
+  const currentSegments = currentPath.split('/').filter(Boolean);
+  const routeSegments = routePath.split('/').filter(Boolean);
+  
+  if (currentSegments.length !== routeSegments.length) {
+    return { match: false, params: {} };
+  }
+  
+  const params = {};
+  for (let i = 0; i < routeSegments.length; i++) {
+    const routeSegment = routeSegments[i];
+    const currentSegment = currentSegments[i];
+    
+    if (routeSegment.startsWith(':')) {
+      // Dynamic segment
+      params[routeSegment.slice(1)] = currentSegment;
+    } else if (routeSegment !== currentSegment) {
+      return { match: false, params: {} };
+    }
+  }
+  
+  return { match: true, params };
+};
+
+// 404 Not Found component
+const NotFoundPage = ({ onNavigateHome }) => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+    <div className="max-w-md w-full text-center">
+      <div className="mb-8">
+        <h1 className="text-6xl font-bold text-gray-900 mb-4">404</h1>
+        <h2 className="text-2xl font-semibold text-gray-700 mb-2">Page Not Found</h2>
+        <p className="text-gray-600 mb-8">
+          The page you're looking for doesn't exist or has been moved.
+        </p>
+      </div>
+      
+      <button
+        onClick={onNavigateHome}
+        className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+      >
+        Go Home
+      </button>
+    </div>
+  </div>
+);
 
 // Offline detection component
 const OfflineIndicator = () => {
@@ -97,129 +170,88 @@ const OfflineIndicator = () => {
 
 // Connection status component
 const ConnectionStatus = () => {
-  const [isConnected, setIsConnected] = useState(true);
-  const [isChecking, setIsChecking] = useState(false);
-
-  useEffect(() => {
-    let interval;
-    let mounted = true;
-
-    const checkConnection = async () => {
-      if (!mounted) return;
-      
-      try {
-        setIsChecking(true);
-        const connected = await apiClient.testConnection();
-        if (mounted) {
-          setIsConnected(connected);
-        }
-      } catch (error) {
-        if (mounted) {
-          setIsConnected(false);
-        }
-      } finally {
-        if (mounted) {
-          setIsChecking(false);
-        }
-      }
-    };
-
-    const initialTimer = setTimeout(() => {
-      if (mounted) {
-        checkConnection();
-      }
-    }, 3000);
-
-    interval = setInterval(() => {
-      if (mounted) {
-        checkConnection();
-      }
-    }, 30000);
-
-    return () => {
-      mounted = false;
-      if (interval) clearInterval(interval);
-      if (initialTimer) clearTimeout(initialTimer);
-    };
-  }, []);
-
-  if (isConnected && !isChecking) return null;
-
-  return (
-    <div className="fixed top-16 right-4 z-40">
-      <div className={`
-        rounded-lg px-3 py-2 text-sm font-medium shadow-lg
-        ${isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}
-        ${isChecking ? 'animate-pulse' : ''}
-      `}>
-        <div className="flex items-center gap-2">
-          {isChecking ? (
-            <>
-              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-              <span>Checking...</span>
-            </>
-          ) : isConnected ? (
-            <>
-              <Wifi className="h-4 w-4" />
-              <span>Connected</span>
-            </>
-          ) : (
-            <>
-              <WifiOff className="h-4 w-4" />
-              <span>Server unavailable</span>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+  // Disable in development since you're running locally
+  if (process.env.NODE_ENV === 'development') {
+    return null;
+  }
+  
+  // Production version would go here
+  return null;
 };
+ 
+
 
 // Main Router Component (inside AuthProvider)
-const MainRouter = () => {
-  const { isAuthenticated, isLoading, isError, error, retry } = useAuth();
-  const { currentRoute, navigate } = useSimpleRouter();
+const MainRouter = () => { 
+const { isAuthenticated, isLoading, isError, error, retry, logout } = useAuth();
+  const { currentPath, navigate, navigateWithQuery, searchParams } = useBrowserRouter();
 
-  // Handle unknown routes
-  useEffect(() => {
-    const validRoutes = Object.values(ROUTES);
-    if (!validRoutes.includes(currentRoute)) {
-      const defaultRoute = isAuthenticated ? ROUTES.DASHBOARD : ROUTES.LOGIN;
-      navigate(defaultRoute, true);
+
+  
+ const handleLogout = async () => {
+    try {
+      await logout();
+      // Navigate to login after successful logout
+      navigate(ROUTES.LOGIN, true);
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Still navigate to login even if logout fails
+      navigate(ROUTES.LOGIN, true);
     }
-  }, [currentRoute, isAuthenticated, navigate]);
-
-  // Auto redirect based on auth status
+  };
+  // Route protection and redirection logic
   useEffect(() => {
     if (isLoading) return;
 
     const publicRoutes = [ROUTES.LOGIN, ROUTES.REGISTER, ROUTES.FORGOT_PASSWORD];
     const protectedRoutes = [ROUTES.DASHBOARD];
+    const currentRouteMatch = Object.values(ROUTES).some(route => 
+      matchRoute(currentPath, route).match
+    );
 
-    if (!isAuthenticated && protectedRoutes.includes(currentRoute)) {
+    // Handle unknown routes
+    if (!currentRouteMatch && currentPath !== '/') {
+      console.log('Unknown route, showing 404');
+      return;
+    }
+
+    // Handle root path
+    if (currentPath === '/' || currentPath === '') {
+      const defaultRoute = isAuthenticated ? ROUTES.DASHBOARD : ROUTES.LOGIN;
+      navigate(defaultRoute, true);
+      return;
+    }
+
+    // Redirect unauthenticated users from protected routes
+    if (!isAuthenticated && protectedRoutes.some(route => matchRoute(currentPath, route).match)) {
       console.log('Not authenticated, redirecting to login');
-      navigate(ROUTES.LOGIN, true);
-    } else if (isAuthenticated && publicRoutes.includes(currentRoute)) {
+      navigateWithQuery(ROUTES.LOGIN, { redirect: currentPath }, true);
+      return;
+    }
+
+    // Redirect authenticated users from auth pages
+    if (isAuthenticated && publicRoutes.some(route => matchRoute(currentPath, route).match)) {
       console.log('Already authenticated, redirecting to dashboard');
       
-      const redirectUrl = sessionStorage.getItem('redirectAfterLogin');
-      if (redirectUrl) {
+      const redirectUrl = sessionStorage.getItem('redirectAfterLogin') || searchParams.get('redirect');
+      if (redirectUrl && redirectUrl !== currentPath) {
         sessionStorage.removeItem('redirectAfterLogin');
         navigate(redirectUrl, true);
       } else {
         navigate(ROUTES.DASHBOARD, true);
       }
     }
-  }, [isAuthenticated, isLoading, currentRoute, navigate]);
+  }, [isAuthenticated, isLoading, currentPath, navigate, navigateWithQuery, searchParams]);
 
   // Navigation handlers
   const handleSwitchToLogin = () => navigate(ROUTES.LOGIN);
   const handleSwitchToRegister = () => navigate(ROUTES.REGISTER);
   const handleSwitchToForgot = () => navigate(ROUTES.FORGOT_PASSWORD);
+  const handleNavigateHome = () => navigate(isAuthenticated ? ROUTES.DASHBOARD : ROUTES.LOGIN);
   
   const handleLoginSuccess = () => {
-    const redirectUrl = sessionStorage.getItem('redirectAfterLogin');
-    if (redirectUrl) {
+    const redirectUrl = sessionStorage.getItem('redirectAfterLogin') || searchParams.get('redirect');
+    if (redirectUrl && redirectUrl !== ROUTES.LOGIN) {
       sessionStorage.removeItem('redirectAfterLogin');
       navigate(redirectUrl, true);
     } else {
@@ -228,7 +260,7 @@ const MainRouter = () => {
   };
 
   const handleRegisterSuccess = () => navigate(ROUTES.LOGIN);
-  const handleLogout = () => navigate(ROUTES.LOGIN, true);
+ 
 
   // Loading state
   if (isLoading) {
@@ -240,40 +272,52 @@ const MainRouter = () => {
     return <ErrorScreen error={error} onRetry={retry} />;
   }
 
-  // Render current route
-  switch (currentRoute) {
-    case ROUTES.LOGIN:
-      return (
-        <LoginPage
-          onSwitchToRegister={handleSwitchToRegister}
-          onSwitchToForgot={handleSwitchToForgot}
-          onLoginSuccess={handleLoginSuccess}
-        />
-      );
+  // Route matching and rendering
+  const loginMatch = matchRoute(currentPath, ROUTES.LOGIN);
+  const registerMatch = matchRoute(currentPath, ROUTES.REGISTER);
+  const forgotMatch = matchRoute(currentPath, ROUTES.FORGOT_PASSWORD);
+  const dashboardMatch = matchRoute(currentPath, ROUTES.DASHBOARD);
 
-    case ROUTES.REGISTER:
-      return (
-        <RegisterPage
-          onSwitchToLogin={handleSwitchToLogin}
-          onRegisterSuccess={handleRegisterSuccess}
-        />
-      );
-
-    case ROUTES.FORGOT_PASSWORD:
-      return (
-        <ForgotPasswordPage
-          onSwitchToLogin={handleSwitchToLogin}
-        />
-      );
-
-    case ROUTES.DASHBOARD:
-      return (
-        <DashboardPage onLogout={handleLogout} />
-      );
-
-    default:
-      return <LoadingScreen message="Redirecting..." />;
+  if (loginMatch.match) {
+    return (
+      <LoginPage
+        onSwitchToRegister={handleSwitchToRegister}
+        onSwitchToForgot={handleSwitchToForgot}
+        onLoginSuccess={handleLoginSuccess}
+      />
+    );
   }
+
+  if (registerMatch.match) {
+    return (
+      <RegisterPage
+        onSwitchToLogin={handleSwitchToLogin}
+        onRegisterSuccess={handleRegisterSuccess}
+      />
+    );
+  }
+
+  if (forgotMatch.match) {
+    return (
+      <ForgotPasswordPage
+        onSwitchToLogin={handleSwitchToLogin}
+      />
+    );
+  }
+
+  if (dashboardMatch.match) {
+    return (
+      <DashboardPage onLogout={handleLogout} />
+    );
+  }
+
+  // Handle root path during loading/auth check
+  if (currentPath === '/' || currentPath === '') {
+    return <LoadingScreen message="Redirecting..." />;
+  }
+
+  // 404 for unknown routes
+  return <NotFoundPage onNavigateHome={handleNavigateHome} />;
 };
 
 // Root App component

@@ -9,14 +9,15 @@ class BaseAPIException(HTTPException):
 
     def __init__(
         self,
-        status_code: int,
-        message: str,
+        status_code: int,  # positional argument 1
+        message: str,  # positional argument 2
+        *,  # Everything after this is keyword-only
         error_code: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
-        **kwargs,  # Add this to capture extra kwargs
+        **kwargs,
     ):
-        # Extract error_code from kwargs if provided (to avoid duplication)
+        # If error_code is provided in both places, use the one from kwargs
         if "error_code" in kwargs:
             error_code = kwargs.pop("error_code")
 
@@ -55,11 +56,14 @@ class TokenExpiredError(AuthenticationError):
 
 class InvalidTokenError(AuthenticationError):
     def __init__(self, message: str = "Invalid token", **kwargs):
+        # Don't pass status_code since AuthenticationError already sets it to 401
+        # Filter out error_code from kwargs to avoid conflict
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k != "error_code"}
+
         super().__init__(
-            status_code=status.HTTP_401_UNAUTHORIZED,  # Add this
             message=message,
-            error_code="INVALID_TOKEN",  # Keep this here
-            **kwargs,
+            error_code="INVALID_TOKEN",
+            **filtered_kwargs,
         )
 
 

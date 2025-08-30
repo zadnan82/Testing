@@ -1,6 +1,6 @@
-// user_frontend/src/context/AuthContext.jsx
+// user_frontend/src/context/AuthContext.jsx - Fixed version
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { authService } from '../services/auth.service';
 import { useToast, useErrorToast } from '../components/ui/Toast';
 import { useErrorHandler } from '../components/ErrorBoundary';
@@ -24,7 +24,11 @@ export const AuthProvider = ({ children }) => {
   const toast = useToast();
   const errorToast = useErrorToast();
   const handleError = useErrorHandler();
-
+  
+  // Use refs to prevent double initialization in React Strict Mode
+  const initializationRef = useRef(false);
+  const initializationPromiseRef = useRef(null);
+  
   // Clear error state
   const clearError = useCallback(() => {
     setError(null);
@@ -32,92 +36,99 @@ export const AuthProvider = ({ children }) => {
 
   // Initialize authentication state
   const initializeAuth = useCallback(async () => {
-    try {
-      console.log('🔐 Initializing authentication...');
-      setAuthState(AUTH_STATES.LOADING);
-      clearError();
-
-      // Check for stored token and user data
-      const token = authService.getStoredToken();
-      const storedUser = authService.getStoredUser();
-
-      if (!token) {
-        console.log('📝 No stored token found');
-        setAuthState(AUTH_STATES.UNAUTHENTICATED);
-        setUser(null);
-        return;
-      }
-
-      if (!authService.isValidToken(token)) {
-        console.log('⚠️ Invalid token found, clearing session');
-        authService.clearLocalSession();
-        setAuthState(AUTH_STATES.UNAUTHENTICATED);
-        setUser(null);
-        return;
-      }
-
-      // Use stored user data temporarily
-      if (storedUser) {
-        console.log('👤 Using stored user data');
-        setUser(storedUser);
-        setAuthState(AUTH_STATES.AUTHENTICATED);
-      }
-
-      // Try to verify with server (with timeout)
-      try {
-        console.log('🔍 Verifying with server...');
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-        const freshUserData = await authService.getCurrentUser({
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        console.log('✅ Server verification successful');
-        setUser(freshUserData);
-        setAuthState(AUTH_STATES.AUTHENTICATED);
-        
-      } catch (verifyError) {
-        console.warn('⚠️ Server verification failed:', verifyError.message);
-        
-        if (verifyError.status === 401) {
-          // Token is invalid on server
-          console.log('🔑 Token invalid on server, logging out');
-          authService.clearLocalSession();
-          setUser(null);
-          setAuthState(AUTH_STATES.UNAUTHENTICATED);
-        } else if (storedUser) {
-          // Network error but we have cached data
-          console.log('📱 Using cached data, server unreachable');
-          setAuthState(AUTH_STATES.AUTHENTICATED);
-        } else {
-          // No cached data and server unreachable
-          console.log('❌ No cached data, server unreachable');
-          setAuthState(AUTH_STATES.UNAUTHENTICATED);
-          setUser(null);
-        }
-      }
-
-    } catch (err) {
-      console.error('💥 Auth initialization failed:', err);
-      setError(err.message);
-      setAuthState(AUTH_STATES.ERROR);
-      authService.clearLocalSession();
-      setUser(null);
-    } finally {
-      setIsInitializing(false);
+    // Prevent double initialization
+    if (initializationRef.current) {
+      return initializationPromiseRef.current;
     }
+    
+    initializationRef.current = true;
+    
+    const initPromise = (async () => {
+      try {
+        console.log('🔐 Initializing authentication...');
+        setAuthState(AUTH_STATES.LOADING);
+        clearError();
+
+        // Check for stored token and user data
+        const token = authService.getStoredToken();
+        const storedUser = authService.getStoredUser();
+
+        if (!token) {
+          console.log('🔍 No stored token found');
+          setAuthState(AUTH_STATES.UNAUTHENTICATED);
+          setUser(null);
+          return;
+        }
+
+        if (!authService.isValidToken(token)) {
+          console.log('⚠️ Invalid token found, clearing session');
+          authService.clearLocalSession();
+          setAuthState(AUTH_STATES.UNAUTHENTICATED);
+          setUser(null);
+          return;
+        }
+
+        // Use stored user data temporarily
+        if (storedUser) {
+          console.log('👤 Using stored user data');
+          setUser(storedUser);
+          setAuthState(AUTH_STATES.AUTHENTICATED);
+        }
+
+        // Try to verify with server (with timeout)
+        try {
+          console.log('🔍 Verifying with server...');
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000); // Increased timeout
+
+          const freshUserData = await authService.getCurrentUser({
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+          console.log('✅ Server verification successful');
+          setUser(freshUserData);
+          setAuthState(AUTH_STATES.AUTHENTICATED);
+          
+        } catch (verifyError) {
+          console.warn('⚠️ Server verification failed:', verifyError.message);
+          
+          if (verifyError.status === 401) {
+            console.log('🔒 Token invalid on server, logging out');
+            authService.clearLocalSession();
+            setUser(null);
+            setAuthState(AUTH_STATES.UNAUTHENTICATED);
+          } else if (storedUser) {
+            console.log('📱 Using cached data, server unreachable');
+            setAuthState(AUTH_STATES.AUTHENTICATED);
+          } else {
+            console.log('❌ No cached data, server unreachable');
+            setAuthState(AUTH_STATES.UNAUTHENTICATED);
+            setUser(null);
+          }
+        }
+
+      } catch (err) {
+        console.error('💥 Auth initialization failed:', err);
+        setError(err.message);
+        setAuthState(AUTH_STATES.ERROR);
+        authService.clearLocalSession();
+        setUser(null);
+      } finally {
+        setIsInitializing(false);
+      }
+    })();
+    
+    initializationPromiseRef.current = initPromise;
+    return initPromise;
   }, [clearError]);
 
-  // Initialize on mount
+  // Initialize only once
   useEffect(() => {
-    if (isInitializing) {
-      initializeAuth();
-    }
-  }, [initializeAuth, isInitializing]);
+    initializeAuth();
+  }, [initializeAuth]);
 
-  // Login function
+  // Login function - reduce logging
   const login = useCallback(async (email, password) => {
     try {
       setAuthState(AUTH_STATES.LOADING);
@@ -125,10 +136,7 @@ export const AuthProvider = ({ children }) => {
 
       console.log('🔐 Logging in...');
       
-      // Perform login
       await authService.login(email, password);
-      
-      // Get user data
       const userData = await authService.getCurrentUser();
       
       setUser(userData);
@@ -154,7 +162,7 @@ export const AuthProvider = ({ children }) => {
       setAuthState(AUTH_STATES.LOADING);
       clearError();
 
-      console.log('📝 Registering...');
+      console.log('🔐 Registering...');
       
       const response = await authService.register(userData);
       
@@ -183,14 +191,12 @@ export const AuthProvider = ({ children }) => {
 
       console.log('🚪 Logging out...');
       
-      // Call server logout (don't fail if it errors)
       try {
         await authService.logout();
       } catch (err) {
         console.warn('Server logout failed, continuing with local logout:', err.message);
       }
       
-      // Always clear local session
       authService.clearLocalSession();
       setUser(null);
       setAuthState(AUTH_STATES.UNAUTHENTICATED);
@@ -203,7 +209,6 @@ export const AuthProvider = ({ children }) => {
 
     } catch (err) {
       console.error('Logout error:', err);
-      // Force logout even if there's an error
       authService.clearLocalSession();
       setUser(null);
       setAuthState(AUTH_STATES.UNAUTHENTICATED);
@@ -226,7 +231,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.error('Profile update failed:', err);
       setError(err.message);
-      setAuthState(AUTH_STATES.AUTHENTICATED); // Keep user logged in
+      setAuthState(AUTH_STATES.AUTHENTICATED);
       errorToast(err, 'Profile update failed');
       throw err;
     }
@@ -247,7 +252,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.error('Password change failed:', err);
       setError(err.message);
-      setAuthState(AUTH_STATES.AUTHENTICATED); // Keep user logged in
+      setAuthState(AUTH_STATES.AUTHENTICATED);
       errorToast(err, 'Password change failed');
       throw err;
     }

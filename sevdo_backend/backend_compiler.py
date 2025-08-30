@@ -10,7 +10,7 @@ from hashlib import sha256
 import concurrent.futures as cf
 
 imports = {
-        "auth_imports": '''
+    "auth_imports": """
 from fastapi import FastAPI, Depends, HTTPException, Header
 from pydantic import BaseModel
 from passlib.context import CryptContext
@@ -103,19 +103,18 @@ def get_current_user(session: "SessionDB" = Depends(get_current_session),
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return user
-        '''
-        }
+        """
+}
 mapping = {
-    "r": '''
+    "r": """
 @app.post("/register")
 def register_endpoint(user: User, db: Session = Depends(get_db)):
     hashed = pwd_context.hash(user.password)
     db_user = UserDB(username=user.username, password=hashed)
     db.add(db_user)
     db.commit()
-    return {"msg": "registered"}''',
-
-    "l": '''
+    return {"msg": "registered"}""",
+    "l": """
 @app.post("/login")
 def login_endpoint(user: User, db: Session = Depends(get_db)):
     db_user = db.query(UserDB).filter(UserDB.username == user.username).first()
@@ -125,55 +124,49 @@ def login_endpoint(user: User, db: Session = Depends(get_db)):
     expiry = datetime.utcnow() + timedelta(hours=1)
     db.add(SessionDB(id=session_id, user_id=db_user.id, expiry=expiry))
     db.commit()
-    return {"session_token": session_id}''',
-
-    "o": '''@app.post("/logout")
+    return {"session_token": session_id}""",
+    "o": """@app.post("/logout")
 def logout_endpoint(session: SessionDB = Depends(get_current_session), db: Session = Depends(get_db)):
     db.delete(session)
     db.commit()
-    return {"msg": "Logged out successfully"}''',
-
-    "u": '''@app.post("/update")
+    return {"msg": "Logged out successfully"}""",
+    "u": """@app.post("/update")
 def update_endpoint(user: User, db: Session = Depends(get_db)):
     db_user = db.query(UserDB).filter(UserDB.username == user.username).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
     db_user.password = pwd_context.hash(user.password)
     db.commit()
-    return {"msg": "User updated"}'''
-    ,
-    "m": '''@app.get("/me")
+    return {"msg": "User updated"}""",
+    "m": """@app.get("/me")
 def me_endpoint(current_user: UserDB = Depends(get_current_user)):
-    return {"id": current_user.id, "username": current_user.username}'''
-    ,
-    "t": '''@app.post("/refresh")
+    return {"id": current_user.id, "username": current_user.username}""",
+    "t": """@app.post("/refresh")
 def refresh_endpoint(session: SessionDB = Depends(get_current_session), db: Session = Depends(get_db)):
     new_session_id = str(uuid.uuid4())
     session.id = new_session_id
     session.expiry = datetime.utcnow() + timedelta(hours=1)
     db.commit()
-    return {"session_token": new_session_id}'''
-    ,
-    "a": '''@app.post("/logout-all")
+    return {"session_token": new_session_id}""",
+    "a": """@app.post("/logout-all")
 def logout_all_endpoint(current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
     db.query(SessionDB).filter(SessionDB.user_id == current_user.id).delete()
     db.commit()
-    return {"msg": "Logged out of all sessions"}'''
-    ,
-    "s": '''@app.get("/sessions")
+    return {"msg": "Logged out of all sessions"}""",
+    "s": """@app.get("/sessions")
 def list_sessions_endpoint(current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
     sessions = db.query(SessionDB).filter(SessionDB.user_id == current_user.id).all()
-    return [{"id": s.id, "expiry": s.expiry.isoformat()} for s in sessions]'''
-    ,
-    "k": '''@app.delete("/sessions/{id}")
+    return [{"id": s.id, "expiry": s.expiry.isoformat()} for s in sessions]""",
+    "k": """@app.delete("/sessions/{id}")
 def revoke_session_endpoint(id: str, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
     session = db.query(SessionDB).filter(SessionDB.id == id, SessionDB.user_id == current_user.id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     db.delete(session)
     db.commit()
-    return {"msg": "Session revoked"}'''
+    return {"msg": "Session revoked"}""",
 }
+
 
 class BackendCompiler:
     def __init__(self):
@@ -193,15 +186,15 @@ class BackendCompiler:
             if decorator_start == -1:
                 continue
             line_end = snippet.find("\n", decorator_start)
-            line = snippet[decorator_start: line_end if line_end != -1 else None]
+            line = snippet[decorator_start : line_end if line_end != -1 else None]
             # Extract method and path by simple parsing
             try:
                 after_app = line.split("@app.", 1)[1]
                 method = after_app.split("(", 1)[0].strip()
                 # find first quoted path
-                first_quote = line.find("\"", line.find("(") + 1)
-                second_quote = line.find("\"", first_quote + 1)
-                path = line[first_quote + 1: second_quote]
+                first_quote = line.find('"', line.find("(") + 1)
+                second_quote = line.find('"', first_quote + 1)
+                path = line[first_quote + 1 : second_quote]
                 index[(method.upper(), path)] = token
             except Exception:
                 # Skip if format unexpected
@@ -229,7 +222,7 @@ class BackendCompiler:
     def code_to_tokens(self, code):
         found = []  # list of (pos, token)
         for (method, path), token in self._route_index.items():
-            signature = f"@app.{method.lower()}(\"{path}\")"
+            signature = f'@app.{method.lower()}("{path}")'
             pos = code.find(signature)
             if pos != -1:
                 found.append((pos, token))
@@ -243,6 +236,7 @@ class BackendCompiler:
 
 
 app = FastAPI(default_response_class=ORJSONResponse)
+
 
 class CompileRequest(BaseModel):
     input_path: str
@@ -273,33 +267,62 @@ MAPPING_VERSION = _compute_mapping_version()
 def _read_text_with_limits(path: str, max_bytes: int = MAX_FILE_BYTES) -> str:
     p = Path(path)
     if not p.exists():
-        raise HTTPException(status_code=404, detail={"code": "file_not_found", "path": str(path)})
+        raise HTTPException(
+            status_code=404, detail={"code": "file_not_found", "path": str(path)}
+        )
     try:
         size = p.stat().st_size
     except Exception as exc:
-        raise HTTPException(status_code=400, detail={"code": "file_stat_error", "path": str(path), "error": str(exc)})
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "file_stat_error", "path": str(path), "error": str(exc)},
+        )
     if size > max_bytes:
-        raise HTTPException(status_code=413, detail={"code": "file_too_large", "path": str(path), "bytes": size, "limit": max_bytes})
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "code": "file_too_large",
+                "path": str(path),
+                "bytes": size,
+                "limit": max_bytes,
+            },
+        )
     try:
         return p.read_text(encoding="utf-8")
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail={"code": "file_not_found", "path": str(path)})
+        raise HTTPException(
+            status_code=404, detail={"code": "file_not_found", "path": str(path)}
+        )
     except Exception as exc:
-        raise HTTPException(status_code=400, detail={"code": "file_read_error", "path": str(path), "error": str(exc)})
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "file_read_error", "path": str(path), "error": str(exc)},
+        )
 
 
 def _ensure_output_parent_exists(path: str):
     parent = Path(path).parent
     if not parent.exists():
-        raise HTTPException(status_code=404, detail={"code": "output_dir_not_found", "path": str(parent)})
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "output_dir_not_found", "path": str(parent)},
+        )
 
 
 def _validate_tokens(tokens: List[str], mapping_keys: List[str]):
     if not isinstance(tokens, list) or any(not isinstance(t, str) for t in tokens):
-        raise HTTPException(status_code=400, detail={"code": "invalid_tokens_type", "message": "tokens must be a list of strings"})
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "invalid_tokens_type",
+                "message": "tokens must be a list of strings",
+            },
+        )
     unknown = [t for t in tokens if t not in mapping_keys]
     if unknown:
-        raise HTTPException(status_code=400, detail={"code": "unknown_tokens", "unknown": unknown})
+        raise HTTPException(
+            status_code=400, detail={"code": "unknown_tokens", "unknown": unknown}
+        )
 
 
 class SimpleTTLCache:
@@ -353,7 +376,9 @@ def _get_compiler() -> "BackendCompiler":
     return GLOBAL_COMPILER
 
 
-def tokens_to_code_cached_info(tokens: List[str], include_imports: bool, use_cache: bool = True):
+def tokens_to_code_cached_info(
+    tokens: List[str], include_imports: bool, use_cache: bool = True
+):
     key = _key_tokens(tokens, include_imports)
     if use_cache:
         cached = TOKENS_TO_CODE_CACHE.get(key)
@@ -397,9 +422,15 @@ def _write_if_changed(path: str, content: str) -> bool:
         p.write_text(content, encoding="utf-8")
         return True
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail={"code": "output_dir_not_found", "path": str(p.parent)})
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "output_dir_not_found", "path": str(p.parent)},
+        )
     except Exception as exc:
-        raise HTTPException(status_code=400, detail={"code": "file_write_error", "path": str(path), "error": str(exc)})
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "file_write_error", "path": str(path), "error": str(exc)},
+        )
 
 
 class DecompileRequest(BaseModel):
@@ -413,7 +444,9 @@ def compile_api(body: CompileRequest):
         content = _read_text_with_limits(body.input_path)
         tokens = content.split()
         _validate_tokens(tokens, list(mapping.keys()))
-        code, hit, cache_key = tokens_to_code_cached_info(tokens, include_imports=body.include_imports, use_cache=body.use_cache)
+        code, hit, cache_key = tokens_to_code_cached_info(
+            tokens, include_imports=body.include_imports, use_cache=body.use_cache
+        )
         _ensure_output_parent_exists(body.output_path)
         changed = _write_if_changed(body.output_path, code)
         return {
@@ -426,21 +459,33 @@ def compile_api(body: CompileRequest):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=400, detail={"code": "unexpected_error", "error": str(exc)})
+        raise HTTPException(
+            status_code=400, detail={"code": "unexpected_error", "error": str(exc)}
+        )
 
 
 @app.post("/api/translate/from-s")
 def decompile_api(body: DecompileRequest):
     try:
         code = _read_text_with_limits(body.code_path)
-        tokens, hit, cache_key = code_to_tokens_cached_info(code, use_cache=body.use_cache)
+        tokens, hit, cache_key = code_to_tokens_cached_info(
+            code, use_cache=body.use_cache
+        )
         if not tokens:
-            raise HTTPException(status_code=400, detail={"code": "invalid_code_format", "message": "No recognizable endpoints found"})
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "invalid_code_format",
+                    "message": "No recognizable endpoints found",
+                },
+            )
         return {"tokens": tokens, "cache": {"hit": hit, "key": cache_key}}
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=400, detail={"code": "unexpected_error", "error": str(exc)})
+        raise HTTPException(
+            status_code=400, detail={"code": "unexpected_error", "error": str(exc)}
+        )
 
 
 class BatchCompileJob(BaseModel):
@@ -466,7 +511,9 @@ def compile_batch_api(body: BatchCompileRequest):
             content = _read_text_with_limits(job.input_path)
             tokens = content.split()
             _validate_tokens(tokens, list(mapping.keys()))
-            code, hit, cache_key = tokens_to_code_cached_info(tokens, include_imports=job.include_imports, use_cache=job.use_cache)
+            code, hit, cache_key = tokens_to_code_cached_info(
+                tokens, include_imports=job.include_imports, use_cache=job.use_cache
+            )
             _ensure_output_parent_exists(job.output_path)
             changed = _write_if_changed(job.output_path, code)
             res = {
@@ -479,9 +526,25 @@ def compile_batch_api(body: BatchCompileRequest):
             }
             return (idx, True, res)
         except HTTPException as http_exc:
-            return (idx, False, {"id": job_id, "status": http_exc.status_code, "error": http_exc.detail})
+            return (
+                idx,
+                False,
+                {
+                    "id": job_id,
+                    "status": http_exc.status_code,
+                    "error": http_exc.detail,
+                },
+            )
         except Exception as exc:
-            return (idx, False, {"id": job_id, "status": 400, "error": {"code": "unexpected_error", "error": str(exc)}})
+            return (
+                idx,
+                False,
+                {
+                    "id": job_id,
+                    "status": 400,
+                    "error": {"code": "unexpected_error", "error": str(exc)},
+                },
+            )
 
     with cf.ThreadPoolExecutor(max_workers=BATCH_MAX_WORKERS) as executor:
         futures = [executor.submit(process, i, job) for i, job in enumerate(body.jobs)]
@@ -513,14 +576,46 @@ def decompile_batch_api(body: BatchDecompileRequest):
         job_id = job.id or str(idx)
         try:
             code = _read_text_with_limits(job.code_path)
-            tokens, hit, cache_key = code_to_tokens_cached_info(code, use_cache=job.use_cache)
+            tokens, hit, cache_key = code_to_tokens_cached_info(
+                code, use_cache=job.use_cache
+            )
             if not tokens:
-                raise HTTPException(status_code=400, detail={"code": "invalid_code_format", "message": "No recognizable endpoints found"})
-            return (idx, True, {"id": job_id, "tokens": tokens, "cache": {"hit": hit, "key": cache_key}})
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "code": "invalid_code_format",
+                        "message": "No recognizable endpoints found",
+                    },
+                )
+            return (
+                idx,
+                True,
+                {
+                    "id": job_id,
+                    "tokens": tokens,
+                    "cache": {"hit": hit, "key": cache_key},
+                },
+            )
         except HTTPException as http_exc:
-            return (idx, False, {"id": job_id, "status": http_exc.status_code, "error": http_exc.detail})
+            return (
+                idx,
+                False,
+                {
+                    "id": job_id,
+                    "status": http_exc.status_code,
+                    "error": http_exc.detail,
+                },
+            )
         except Exception as exc:
-            return (idx, False, {"id": job_id, "status": 400, "error": {"code": "unexpected_error", "error": str(exc)}})
+            return (
+                idx,
+                False,
+                {
+                    "id": job_id,
+                    "status": 400,
+                    "error": {"code": "unexpected_error", "error": str(exc)},
+                },
+            )
 
     with cf.ThreadPoolExecutor(max_workers=BATCH_MAX_WORKERS) as executor:
         futures = [executor.submit(process, i, job) for i, job in enumerate(body.jobs)]
@@ -538,8 +633,16 @@ def decompile_batch_api(body: BatchDecompileRequest):
 def cache_stats():
     return {
         "mapping_version": MAPPING_VERSION,
-        "tokens_to_code": {"size": len(TOKENS_TO_CODE_CACHE._store), "maxsize": TOKENS_TO_CODE_CACHE.maxsize, "ttl_seconds": TOKENS_TO_CODE_CACHE.ttl},
-        "code_to_tokens": {"size": len(CODE_TO_TOKENS_CACHE._store), "maxsize": CODE_TO_TOKENS_CACHE.maxsize, "ttl_seconds": CODE_TO_TOKENS_CACHE.ttl},
+        "tokens_to_code": {
+            "size": len(TOKENS_TO_CODE_CACHE._store),
+            "maxsize": TOKENS_TO_CODE_CACHE.maxsize,
+            "ttl_seconds": TOKENS_TO_CODE_CACHE.ttl,
+        },
+        "code_to_tokens": {
+            "size": len(CODE_TO_TOKENS_CACHE._store),
+            "maxsize": CODE_TO_TOKENS_CACHE.maxsize,
+            "ttl_seconds": CODE_TO_TOKENS_CACHE.ttl,
+        },
     }
 
 
@@ -548,6 +651,34 @@ def cache_flush():
     TOKENS_TO_CODE_CACHE._store.clear()
     CODE_TO_TOKENS_CACHE._store.clear()
     return {"flushed": True}
+
+
+# Add a new endpoint that accepts tokens directly
+class DirectCompileRequest(BaseModel):
+    tokens: List[str]
+    include_imports: bool = True
+    use_cache: bool = True
+
+
+@app.post("/api/translate/to-s-direct")
+def compile_direct_api(body: DirectCompileRequest):
+    try:
+        _validate_tokens(body.tokens, list(mapping.keys()))
+        code, hit, cache_key = tokens_to_code_cached_info(
+            body.tokens, include_imports=body.include_imports, use_cache=body.use_cache
+        )
+        return {
+            "generated_code": code,
+            "tokens": body.tokens,
+            "bytes": len(code),
+            "cache": {"hit": hit, "key": cache_key},
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400, detail={"code": "unexpected_error", "error": str(exc)}
+        )
 
 
 if __name__ == "__main__":

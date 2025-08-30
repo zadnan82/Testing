@@ -12,7 +12,8 @@ import {
   Clock,
   AlertCircle,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  Star
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
@@ -20,7 +21,7 @@ import CreateProjectPage from '../projects/CreateProjectPage';
 import HybridBuilderPage from '../projects/HybridBuilderPage';
 import SevdoBuilderPage from '../projects/SevdoBuilderPage'; // NEW
 import { analyticsService } from '../../services/analytics.service';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/Toast'; 
 
 const OverviewTab = () => {
   const [activeView, setActiveView] = useState('dashboard');
@@ -62,10 +63,7 @@ const OverviewTab = () => {
     }
   };
 
-  // Show different views
-  if (activeView === 'create-project') {
-    return <CreateProjectPage onBack={() => setActiveView('dashboard')} />;
-  }
+ 
 
   if (activeView === 'hybrid-builder') {
     return <HybridBuilderPage onBack={() => setActiveView('dashboard')} />;
@@ -74,6 +72,8 @@ const OverviewTab = () => {
   if (activeView === 'sevdo-builder') {
     return <SevdoBuilderPage onBack={() => setActiveView('dashboard')} />;
   }
+
+ 
 
   // Loading state
   if (loading && !dashboardData) {
@@ -218,6 +218,7 @@ const OverviewTab = () => {
               <div className="text-xs opacity-90">Chat + Tokens</div>
             </div>
           </Button>
+ 
           
           {/* SEVDO Token Builder - NEW */}
           <Button 
@@ -232,31 +233,8 @@ const OverviewTab = () => {
             </div>
           </Button>
           
-          {/* Advanced Project */}
-          <Button 
-            variant="outline"
-            className="h-20 sm:h-24 flex flex-col items-center justify-center space-y-2"
-            onClick={() => setActiveView('create-project')}
-          >
-            <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
-            <div className="text-center">
-              <div className="font-medium text-sm sm:text-base">Advanced Project</div>
-              <div className="text-xs opacity-70">Full Configuration</div>
-            </div>
-          </Button>
-          
-          {/* Quick Generation */}
-          <Button 
-            variant="outline" 
-            className="h-20 sm:h-24 flex flex-col items-center justify-center space-y-2"
-            onClick={() => setActiveView('sevdo-builder')}
-          >
-            <Code className="h-5 w-5 sm:h-6 sm:w-6" />
-            <div className="text-center">
-              <div className="font-medium text-sm sm:text-base">Quick Gen</div>
-              <div className="text-xs opacity-70">Instant Code</div>
-            </div>
-          </Button>
+       
+        
         </div>
       </Card>
 

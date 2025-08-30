@@ -1,14 +1,14 @@
-// user_frontend/src/pages/auth/RegisterPage.jsx
+// user_frontend/src/pages/auth/RegisterPage.jsx - Enhanced with Password Validation
 
-import React, { useState } from 'react';
-import { Code, User, Mail, Lock, UserPlus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Code, User, Mail, Lock, UserPlus, Eye, EyeOff, Check, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Card from '../../components/ui/Card';
 
 const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
-  const { register, isLoading, error, clearError } = useAuth();
+  const { register, isLoading, clearError } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -17,7 +17,39 @@ const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
     confirmPassword: ''
   });
   const [formErrors, setFormErrors] = useState({});
+  const [registrationError, setRegistrationError] = useState('');
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordValidation, setPasswordValidation] = useState({
+    length: false,
+    lowercase: false,
+    uppercase: false,
+    number: false,
+    special: false,
+    common: true
+  });
+
+  useEffect(() => {
+    clearError();
+    setRegistrationError('');
+  }, [clearError]);
+
+  // Real-time password validation
+  useEffect(() => {
+    const password = formData.password;
+    
+    setPasswordValidation({
+      length: password.length >= 8 && password.length <= 64,
+      lowercase: /[a-z]/.test(password),
+      uppercase: /[A-Z]/.test(password),
+      number: /[0-9]/.test(password),
+      special: /[^a-zA-Z0-9]/.test(password),
+      common: !(/^(password|123456|qwerty|admin)/i.test(password) || 
+                /^(.)\1{7,}$/.test(password) ||
+                /^(012|123|234|345|456|567|678|789|890){3,}/.test(password))
+    });
+  }, [formData.password]);
 
   const validateForm = () => {
     const errors = {};
@@ -27,6 +59,8 @@ const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
       errors.firstName = 'First name is required';
     } else if (formData.firstName.trim().length < 2) {
       errors.firstName = 'First name must be at least 2 characters';
+    } else if (!/^[a-zA-Z\s\-']+$/.test(formData.firstName.trim())) {
+      errors.firstName = 'First name can only contain letters, spaces, hyphens, and apostrophes';
     }
 
     // Last name validation
@@ -34,6 +68,8 @@ const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
       errors.lastName = 'Last name is required';
     } else if (formData.lastName.trim().length < 2) {
       errors.lastName = 'Last name must be at least 2 characters';
+    } else if (!/^[a-zA-Z\s\-']+$/.test(formData.lastName.trim())) {
+      errors.lastName = 'Last name can only contain letters, spaces, hyphens, and apostrophes';
     }
 
     // Email validation
@@ -46,10 +82,18 @@ const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
     // Password validation
     if (!formData.password) {
       errors.password = 'Password is required';
-    } else if (formData.password.length < 8) {
-      errors.password = 'Password must be at least 8 characters';
-    } else if (formData.password.length > 64) {
-      errors.password = 'Password must be less than 64 characters';
+    } else {
+      const validationFailures = [];
+      if (!passwordValidation.length) validationFailures.push('8-64 characters');
+      if (!passwordValidation.lowercase) validationFailures.push('lowercase letter');
+      if (!passwordValidation.uppercase) validationFailures.push('uppercase letter');
+      if (!passwordValidation.number) validationFailures.push('number');
+      if (!passwordValidation.special) validationFailures.push('special character');
+      if (!passwordValidation.common) validationFailures.push('avoid common patterns');
+      
+      if (validationFailures.length > 0) {
+        errors.password = `Password must include: ${validationFailures.join(', ')}`;
+      }
     }
 
     // Confirm password validation
@@ -65,6 +109,7 @@ const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormErrors({});
+    setRegistrationError('');
     clearError();
     setRegistrationSuccess(false);
 
@@ -81,10 +126,11 @@ const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
         lastName: formData.lastName.trim(),
         email: formData.email.trim(),
         password: formData.password,
-        userTypeId: 1 // Default user type
+        userTypeId: 1
       });
       
       setRegistrationSuccess(true);
+      
       // Clear form
       setFormData({
         firstName: '',
@@ -94,8 +140,17 @@ const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
         confirmPassword: ''
       });
     } catch (err) {
-      // Error is handled by context and displayed via toast
       console.error('Registration failed:', err);
+      
+      let errorMessage = 'Registration failed. Please try again.';
+      
+      if (typeof err.message === 'string') {
+        errorMessage = err.message;
+      } else if (err.getUserMessage) {
+        errorMessage = err.getUserMessage();
+      }
+      
+      setRegistrationError(errorMessage);
     }
   };
 
@@ -107,6 +162,11 @@ const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
     if (formErrors[name]) {
       setFormErrors(prev => ({ ...prev, [name]: '' }));
     }
+    
+    if (registrationError) {
+      setRegistrationError('');
+    }
+    
     clearError();
     setRegistrationSuccess(false);
   };
@@ -118,6 +178,20 @@ const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
       onSwitchToLogin();
     }
   };
+
+  // Password strength indicator component
+  const PasswordValidationIndicator = ({ validation, label, description }) => (
+    <div className="flex items-center space-x-2 text-xs">
+      {validation ? (
+        <Check className="h-3 w-3 text-green-500" />
+      ) : (
+        <X className="h-3 w-3 text-gray-300" />
+      )}
+      <span className={validation ? 'text-green-700' : 'text-gray-500'}>
+        {description}
+      </span>
+    </div>
+  );
 
   if (registrationSuccess) {
     return (
@@ -131,10 +205,7 @@ const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
             <p className="text-gray-600 mb-6">
               Your account has been created successfully. You can now sign in with your credentials.
             </p>
-            <Button
-              onClick={handleGoToLogin}
-              className="w-full"
-            >
+            <Button onClick={handleGoToLogin} className="w-full">
               Go to Sign In
             </Button>
           </div>
@@ -155,9 +226,22 @@ const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-              {error}
+          {/* General registration error */}
+          {registrationError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <UserPlus className="h-5 w-5 text-red-400 mt-0.5" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">Registration Failed</h3>
+                  <div className="mt-1 text-sm text-red-700">
+                    {registrationError.split('. ').map((line, index) => (
+                      <div key={index}>{line.trim()}{index < registrationError.split('. ').length - 1 ? '.' : ''}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -203,33 +287,88 @@ const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
             autoComplete="email"
           />
 
-          <Input
-            label="Password"
-            name="password"
-            type="password"
-            icon={Lock}
-            value={formData.password}
-            onChange={handleChange}
-            error={formErrors.password}
-            required
-            disabled={isLoading}
-            placeholder="Enter your password"
-            autoComplete="new-password"
-          />
+          <div className="relative">
+            <Input
+              label="Password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              icon={Lock}
+              value={formData.password}
+              onChange={handleChange}
+              error={formErrors.password}
+              required
+              disabled={isLoading}
+              placeholder="Create a strong password"
+              autoComplete="new-password"
+            />
+            <button
+              type="button"
+              className="absolute right-3 top-9 text-gray-400 hover:text-gray-600 transition-colors"
+              onClick={() => setShowPassword(!showPassword)}
+              disabled={isLoading}
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
 
-          <Input
-            label="Confirm Password"
-            name="confirmPassword"
-            type="password"
-            icon={Lock}
-            value={formData.confirmPassword}
-            onChange={handleChange}
-            error={formErrors.confirmPassword}
-            required
-            disabled={isLoading}
-            placeholder="Confirm your password"
-            autoComplete="new-password"
-          />
+          {/* Password validation indicators */}
+          {formData.password && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
+              <h4 className="text-sm font-medium text-gray-700">Password Requirements:</h4>
+              <div className="grid grid-cols-1 gap-1">
+                <PasswordValidationIndicator 
+                  validation={passwordValidation.length} 
+                  description="8-64 characters long" 
+                />
+                <PasswordValidationIndicator 
+                  validation={passwordValidation.lowercase} 
+                  description="At least one lowercase letter" 
+                />
+                <PasswordValidationIndicator 
+                  validation={passwordValidation.uppercase} 
+                  description="At least one uppercase letter" 
+                />
+                <PasswordValidationIndicator 
+                  validation={passwordValidation.number} 
+                  description="At least one number" 
+                />
+                <PasswordValidationIndicator 
+                  validation={passwordValidation.special} 
+                  description="At least one special character" 
+                />
+                <PasswordValidationIndicator 
+                  validation={passwordValidation.common} 
+                  description="Not a common password" 
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="relative">
+            <Input
+              label="Confirm Password"
+              name="confirmPassword"
+              type={showConfirmPassword ? "text" : "password"}
+              icon={Lock}
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              error={formErrors.confirmPassword}
+              required
+              disabled={isLoading}
+              placeholder="Confirm your password"
+              autoComplete="new-password"
+            />
+            <button
+              type="button"
+              className="absolute right-3 top-9 text-gray-400 hover:text-gray-600 transition-colors"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              disabled={isLoading}
+              tabIndex={-1}
+            >
+              {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
 
           <Button
             type="submit"
@@ -237,7 +376,7 @@ const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
             loading={isLoading}
             disabled={isLoading}
           >
-            Create Account
+            {isLoading ? 'Creating Account...' : 'Create Account'}
           </Button>
         </form>
 
@@ -247,7 +386,7 @@ const RegisterPage = ({ onSwitchToLogin, onRegisterSuccess }) => {
             <button
               type="button"
               onClick={onSwitchToLogin}
-              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+              className="text-blue-600 hover:text-blue-700 font-medium transition-colors underline hover:no-underline"
               disabled={isLoading}
             >
               Sign in

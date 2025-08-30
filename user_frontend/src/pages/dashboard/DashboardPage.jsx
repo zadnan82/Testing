@@ -5,11 +5,8 @@ import { Code, LogOut, Settings, Zap, Database, Menu, X, BarChart3, Files } from
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import NotificationsPanel from '../../components/NotificationsPanel';
-import OverviewTab from './OverviewTab';
-import ProductsTab from './ProductsTab';
-import SettingsTab from './SettingsTab';
-import AnalyticsTab from './AnalyticsTab';
-//import FilesTab from './FilesTab';
+import OverviewTab from './OverviewTab'; 
+import SettingsTab from './SettingsTab';  
 
 const DashboardPage = () => {
   const { user, logout } = useAuth();
@@ -18,19 +15,20 @@ const DashboardPage = () => {
 
   const navigation = [
     { id: 'overview', name: 'Overview', icon: Zap },
-    { id: 'analytics', name: 'Analytics', icon: BarChart3 },
-    { id: 'products', name: 'Projects', icon: Database },
-    { id: 'files', name: 'Files', icon: Files },
     { id: 'settings', name: 'Settings', icon: Settings }
   ];
 
-  const handleLogout = async () => {
+ const handleLogout = async () => {
     try {
       await logout();
+      // Force redirect to login page
+      window.location.href = '/login';
     } catch (error) {
       console.error('Logout failed:', error);
+      window.location.href = '/login';
     }
   };
+
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);

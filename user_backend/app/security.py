@@ -10,7 +10,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from user_backend.app.api.v1.core.models import Token, User, UserType
+from user_backend.app.models import Token, User, UserType
 from user_backend.app.core.exceptions import (
     AuthorizationError,
     DatabaseError,

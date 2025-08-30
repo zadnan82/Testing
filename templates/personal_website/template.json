@@ -1,0 +1,21 @@
+{
+  "id": 2,
+  "name": "Personal Website",
+  "description": "A modern personal website template with portfolio and blog features",
+  "project_type": "web_app",
+  "category": "portfolio",
+  "is_featured": true,
+  "is_public": true,
+  "usage_count": 0,
+  "preview_image_url": "https://example.com/preview/personal_website.png",
+  "rating": 4.8,
+  "tags": ["portfolio", "personal", "website", "blog"],
+  "config": {
+    "frontend_framework": "react",
+    "styling": "tailwind",
+    "features": ["portfolio", "blog", "contact"]
+  },
+  "tokens": ["portfolio", "personal", "website", "blog"],
+  "created_at": "2024-01-01T00:00:00",
+  "updated_at": "2024-01-01T00:00:00"
+}

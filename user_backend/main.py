@@ -6,8 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import uvicorn
-from user_backend.app.core.logging_config import StructuredLogger
-from user_backend.app.api.v1.router import api_router
+import os
+import logging
+
 from user_backend.app.core.exceptions import (
     UserAlreadyExistsError,
     InvalidCredentialsError,
@@ -16,8 +17,7 @@ from user_backend.app.core.exceptions import (
 )
 from user_backend.app.db_setup import init_db
 
-
-# Initialize logger if available
+# Initialize logger
 try:
     from user_backend.app.core.logging_config import StructuredLogger
 
@@ -32,25 +32,28 @@ except ImportError:
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
-    logger.info("Starting SEVDO User Backend API v2.0.0")
+    logger.info("🚀 Starting SEVDO User Backend API v2.0.0")
 
-    # Initialize database if needed
     try:
         init_db()
-        logger.info("Database initialized successfully")
+        logger.info("✅ Database initialized successfully")
     except Exception as e:
-        logger.error(f"Database initialization failed: {str(e)}")
+        logger.error(f"❌ Database initialization failed: {str(e)}")
 
     yield
 
     # Shutdown
-    logger.info("Shutting down SEVDO User Backend API")
+    logger.info("🛑 Shutting down SEVDO User Backend API")
 
 
 # Create FastAPI application
 app = FastAPI(
     title="SEVDO User Backend API",
-    description="Enhanced backend API for SEVDO platform with AI integration, real-time features, and comprehensive project management",
+    description="""
+    ## Enhanced Backend API for SEVDO Platform
+    
+    A comprehensive backend service with clean, organized endpoints for all SEVDO platform features.
+    """,
     version="2.0.0",
     lifespan=lifespan,
     docs_url="/docs",
@@ -59,21 +62,27 @@ app = FastAPI(
 )
 
 # Configure CORS
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5000",
+    "https://sevdo.com",
+    "https://app.sevdo.com",
+]
+
+if os.getenv("ENVIRONMENT", "development") == "development":
+    ALLOWED_ORIGINS.append("*")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:5000",
-        "*",  # Remove in production
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
 
 
-# Global exception handlers
+# Exception handlers
 @app.exception_handler(UserAlreadyExistsError)
 async def user_already_exists_handler(request: Request, exc: UserAlreadyExistsError):
     return JSONResponse(
@@ -83,11 +92,9 @@ async def user_already_exists_handler(request: Request, exc: UserAlreadyExistsEr
             "error": {
                 "type": "UserAlreadyExistsError",
                 "message": str(exc),
-                "field": "email",
                 "code": "USER_EXISTS",
             },
             "timestamp": datetime.utcnow().isoformat(),
-            "path": str(request.url),
         },
     )
 
@@ -104,7 +111,6 @@ async def invalid_credentials_handler(request: Request, exc: InvalidCredentialsE
                 "code": "INVALID_CREDENTIALS",
             },
             "timestamp": datetime.utcnow().isoformat(),
-            "path": str(request.url),
         },
     )
 
@@ -121,14 +127,13 @@ async def validation_error_handler(request: Request, exc: ValidationError):
                 "code": "VALIDATION_FAILED",
             },
             "timestamp": datetime.utcnow().isoformat(),
-            "path": str(request.url),
         },
     )
 
 
 @app.exception_handler(DatabaseError)
 async def database_error_handler(request: Request, exc: DatabaseError):
-    logger.error(f"Database error on {request.url}: {str(exc)}")
+    logger.error(f"Database error: {str(exc)}")
     return JSONResponse(
         status_code=500,
         content={
@@ -139,93 +144,204 @@ async def database_error_handler(request: Request, exc: DatabaseError):
                 "code": "DATABASE_ERROR",
             },
             "timestamp": datetime.utcnow().isoformat(),
-            "path": str(request.url),
         },
     )
 
 
-@app.exception_handler(500)
-async def internal_server_error_handler(request: Request, exc):
-    logger.error(f"Internal server error on {request.url}: {str(exc)}")
-    return JSONResponse(
-        status_code=500,
-        content={
-            "success": False,
-            "error": {
-                "type": "InternalServerError",
-                "message": "An unexpected error occurred",
-                "code": "INTERNAL_ERROR",
-            },
-            "timestamp": datetime.utcnow().isoformat(),
-            "path": str(request.url),
+# =============================================================================
+# DIRECT ROUTER IMPORTS AND REGISTRATION
+# =============================================================================
+
+# Track successful registrations
+registered_routers = []
+failed_routers = []
+
+# Core routers (required)
+core_routers = [
+    {"name": "auth", "prefix": "/api/v1/auth", "tags": ["Authentication"]},
+    {"name": "projects", "prefix": "/api/v1/projects", "tags": ["Projects"]},
+    {"name": "sevdo", "prefix": "/api/v1/sevdo", "tags": ["Sevdo Builder"]},
+    {"name": "tokens", "prefix": "/api/v1/tokens", "tags": ["Tokens"]},
+    {"name": "templates", "prefix": "/api/v1/templates", "tags": ["Templates"]},
+    {"name": "ai", "prefix": "/api/v1/ai", "tags": ["AI Integration"]},
+]
+
+# Enhanced routers (optional)
+enhanced_routers = [
+    {
+        "name": "analytics",
+        "prefix": "/api/v1/analytics",
+        "tags": ["Analytics & Reporting"],
+    },
+    {"name": "system", "prefix": "/api/v1/system", "tags": ["System Monitoring"]},
+    {
+        "name": "user_preferences",
+        "prefix": "/api/v1/preferences",
+        "tags": ["User Preferences"],
+    },
+    {
+        "name": "notifications",
+        "prefix": "/api/v1/notifications",
+        "tags": ["Notifications"],
+    },
+    {"name": "websockets", "prefix": "/api/v1/ws", "tags": ["Real-time Updates"]},
+]
+
+
+def register_router(router_config, required=True):
+    """Register a router with error handling and duplicate prevention"""
+    try:
+        # Check if already registered
+        router_name = router_config["name"]
+        if any(r["name"] == router_name for r in registered_routers):
+            logger.warning(f"⚠️  Router {router_name} already registered, skipping...")
+            return True
+
+        # Import the router
+        module_path = f"user_backend.app.api.v1.{router_config['name']}"
+        module = __import__(module_path, fromlist=["router"])
+        router = getattr(module, "router")
+
+        # Verify it's an APIRouter instance
+        from fastapi import APIRouter
+
+        if not isinstance(router, APIRouter):
+            raise ValueError(f"Expected APIRouter instance, got {type(router)}")
+
+        # Include the router with explicit configuration
+        app.include_router(
+            router,
+            prefix=router_config["prefix"],
+            tags=router_config["tags"],
+            # Add this to ensure unique registration
+            include_in_schema=True,
+        )
+
+        registered_routers.append(
+            {
+                "name": router_config["name"],
+                "prefix": router_config["prefix"],
+                "tags": router_config["tags"],
+                "type": "core" if required else "enhanced",
+            }
+        )
+
+        logger.info(
+            f"✅ Registered {router_config['name']} router at {router_config['prefix']}"
+        )
+        return True
+
+    except ImportError as e:
+        failed_routers.append(
+            {
+                "name": router_config["name"],
+                "prefix": router_config["prefix"],
+                "error": f"Import failed: {str(e)}",
+                "required": required,
+            }
+        )
+
+        if required:
+            logger.error(
+                f"❌ Failed to import required router {router_config['name']}: {str(e)}"
+            )
+        else:
+            logger.info(
+                f"⚠️  Optional router {router_config['name']} not available: {str(e)}"
+            )
+        return False
+
+    except Exception as e:
+        failed_routers.append(
+            {
+                "name": router_config["name"],
+                "prefix": router_config["prefix"],
+                "error": f"Registration failed: {str(e)}",
+                "required": required,
+            }
+        )
+
+        logger.error(f"❌ Failed to register router {router_config['name']}: {str(e)}")
+        return False
+
+
+# Register core routers
+logger.info("🔧 Registering core routers...")
+for router_config in core_routers:
+    register_router(router_config, required=True)
+
+# Register enhanced routers
+logger.info("⭐ Registering enhanced routers...")
+for router_config in enhanced_routers:
+    register_router(router_config, required=False)
+
+# Log summary
+core_registered = len([r for r in registered_routers if r["type"] == "core"])
+enhanced_registered = len([r for r in registered_routers if r["type"] == "enhanced"])
+total_failed = len(failed_routers)
+
+logger.info(f"📊 Router registration summary:")
+logger.info(f"   ✅ Core routers: {core_registered}/{len(core_routers)}")
+logger.info(f"   ⭐ Enhanced routers: {enhanced_registered}/{len(enhanced_routers)}")
+logger.info(f"   ❌ Failed: {total_failed}")
+
+if failed_routers:
+    critical_failures = [f for f in failed_routers if f["required"]]
+    if critical_failures:
+        logger.error("🚨 Critical router failures:")
+        for failure in critical_failures:
+            logger.error(f"   - {failure['name']}: {failure['error']}")
+
+# =============================================================================
+# API STATUS ENDPOINTS
+# =============================================================================
+
+
+@app.get("/api/v1/status", tags=["API Info"])
+async def api_status():
+    """Get API status and registered endpoints"""
+
+    return {
+        "api_version": "v1",
+        "status": "operational" if core_registered > 0 else "degraded",
+        "timestamp": datetime.utcnow().isoformat(),
+        "summary": {
+            "total_registered": len(registered_routers),
+            "core_routers": core_registered,
+            "enhanced_routers": enhanced_registered,
+            "failed_routers": total_failed,
         },
-    )
+        "registered_routers": registered_routers,
+        "failed_routers": failed_routers if failed_routers else [],
+        "documentation": {"swagger_ui": "/docs", "redoc": "/redoc"},
+    }
 
 
-# Include API router with all endpoints
-app.include_router(api_router, prefix="/api")
+# =============================================================================
+# ROOT ENDPOINTS
+# =============================================================================
 
 
-# Root endpoints
-@app.get("/")
+@app.get("/", tags=["Root"])
 async def root():
-    """Root endpoint with API information"""
+    """API information"""
     return {
         "name": "SEVDO User Backend API",
         "version": "2.0.0",
         "status": "operational",
-        "description": "Enhanced backend for SEVDO platform with AI integration",
-        "docs_url": "/docs",
-        "redoc_url": "/redoc",
-        "api_base": "/api/v1",
-        "features": [
-            "User Authentication & Management",
-            "Project Management",
-            "Token System",
-            "AI Integration",
-            "Real-time WebSocket Updates",
-            "File Management",
-            "Analytics & Reporting",
-            "System Monitoring",
-            "Notification System",
-            "User Preferences",
-        ],
-        "timestamp": datetime.utcnow().isoformat(),
+        "registered_endpoints": len(registered_routers),
+        "documentation": "/docs",
+        "api_status": "/api/v1/status",
     }
 
 
-@app.get("/health")
+@app.get("/health", tags=["Root"])
 async def health_check():
-    """Simple health check endpoint"""
+    """Health check"""
     return {
         "status": "healthy",
-        "service": "sevdo-user-backend",
-        "version": "2.0.0",
         "timestamp": datetime.utcnow().isoformat(),
-        "uptime": "operational",
-    }
-
-
-@app.get("/api")
-async def api_info():
-    """API information endpoint"""
-    return {
-        "api_version": "v1",
-        "base_url": "/api/v1",
-        "available_endpoints": [
-            "/auth - Authentication & user management",
-            "/projects - Project management",
-            "/tokens - Token system",
-            "/templates - Project templates",
-            "/ai - AI integration",
-            "/analytics - Analytics & reporting",
-            "/files - File management",
-            "/system - System monitoring",
-            "/notifications - Notification system",
-            "/ws - WebSocket connections",
-        ],
-        "documentation": "/docs",
-        "timestamp": datetime.utcnow().isoformat(),
+        "registered_routers": len(registered_routers),
     }
 
 

@@ -1,470 +1,569 @@
-// user_frontend/src/services/api.js
+// user_frontend/src/services/api.js - Optimized with reduced logging
 
-import { CONFIG, getApiUrl } from '../config/api.config';
-import { storage } from '../utils/storage';
+import { CONFIG } from '../config/api.config';
 
-class ApiError extends Error {
-  constructor(message, status, code, details = {}) {
+export class ApiError extends Error {
+  constructor(message, status, statusText, data = null, originalError = null) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
-    this.code = code;
-    this.details = details;
+    this.statusText = statusText;
+    this.data = data;
+    this.originalError = originalError;
+  }
+
+  // Get user-friendly error message
+  getUserMessage() {
+    // If we have structured error data from backend
+    if (this.data) {
+      // Handle FastAPI validation errors
+      if (this.data.detail && Array.isArray(this.data.detail)) {
+        return this.data.detail.map(err => err.msg || err.message).join('. ');
+      }
+      
+      // Handle custom error responses
+      if (this.data.detail && typeof this.data.detail === 'string') {
+        return this.data.detail;
+      }
+      
+      // Handle message field
+      if (this.data.message) {
+        return this.data.message;
+      }
+      
+      // Handle error field
+      if (this.data.error) {
+        return this.data.error;
+      }
+    }
+
+    // Status-specific messages
+    switch (this.status) {
+      case 400:
+        return 'Invalid request. Please check your input.';
+      case 401:
+        return 'Invalid email or password. Please check your credentials.';
+      case 403:
+        return 'Access denied. You do not have permission to perform this action.';
+      case 404:
+        return 'The requested resource was not found.';
+      case 409:
+        return 'A conflict occurred. The resource already exists.';
+      case 422:
+        return 'Validation error. Please check your input.';
+      case 429:
+        return 'Too many requests. Please wait a moment before trying again.';
+      case 500:
+        return 'Server error. Please try again later.';
+      case 503:
+        return 'Service temporarily unavailable. Please try again later.';
+      default:
+        return this.message || 'An unexpected error occurred. Please try again.';
+    }
+  }
+
+  // Check if error is related to authentication
+  isAuthError() {
+    return this.status === 401 || this.status === 403;
+  }
+
+  // Check if error is a validation error
+  isValidationError() {
+    return this.status === 422 || this.status === 400;
+  }
+
+  // Check if error is server-side
+  isServerError() {
+    return this.status >= 500;
+  }
+
+  // Check if error is a conflict (e.g., duplicate email)
+  isConflictError() {
+    return this.status === 409;
   }
 }
 
-class NetworkError extends Error {
-  constructor(message = 'Network error occurred') {
-    super(message);
-    this.name = 'NetworkError';
-  }
-}
-
-class TimeoutError extends Error {
-  constructor(message = 'Request timed out') {
-    super(message);
-    this.name = 'TimeoutError';
-  }
-}
-
-class ApiClient {
-  constructor() {
-    this.baseURL = CONFIG.API.BASE_URL;
-    this.timeout = CONFIG.API.TIMEOUT;
-    this.retryAttempts = CONFIG.API.RETRY_ATTEMPTS || 3;
-    this.retryDelay = 1000; // 1 second
-    this.requestInterceptors = [];
-    this.responseInterceptors = [];
-    
-    // Add default interceptors
-    this.setupDefaultInterceptors();
-  }
-
-  setupDefaultInterceptors() {
-    // Request interceptor for auth token
-    this.addRequestInterceptor((config) => {
-      const token = storage.get(CONFIG.STORAGE_KEYS.SESSION_TOKEN);
-      if (token) {
-        config.headers = {
-          ...config.headers,
-          Authorization: `Bearer ${token}`
-        };
-      }
-      return config;
-    });
-
-    // Response interceptor for global error handling
-    this.addResponseInterceptor(
-      (response) => response,
-      (error) => {
-        this.handleGlobalError(error);
-        return Promise.reject(error);
-      }
-    );
-  }
-
-  addRequestInterceptor(interceptor) {
-    this.requestInterceptors.push(interceptor);
-  }
-
-  addResponseInterceptor(onFulfilled, onRejected) {
-    this.responseInterceptors.push({ onFulfilled, onRejected });
-  }
-
-  async applyRequestInterceptors(config) {
-    let finalConfig = { ...config };
-    
-    for (const interceptor of this.requestInterceptors) {
-      try {
-        finalConfig = await interceptor(finalConfig);
-      } catch (error) {
-        console.error('Request interceptor error:', error);
-      }
-    }
-    
-    return finalConfig;
-  }
-
-  async applyResponseInterceptors(response) {
-    let finalResponse = response;
-    
-    for (const { onFulfilled } of this.responseInterceptors) {
-      if (onFulfilled) {
-        try {
-          finalResponse = await onFulfilled(finalResponse);
-        } catch (error) {
-          console.error('Response interceptor error:', error);
-        }
-      }
-    }
-    
-    return finalResponse;
-  }
-
-  async applyErrorInterceptors(error) {
-    for (const { onRejected } of this.responseInterceptors) {
-      if (onRejected) {
-        try {
-          await onRejected(error);
-        } catch (interceptorError) {
-          // Don't log error interceptor errors in production to avoid noise
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Error interceptor error:', interceptorError);
-          }
-        }
-      }
-    }
-  }
-
-  handleGlobalError(error) {
-    // Handle different types of errors globally
-    if (error.status === 401) {
-      this.handleUnauthorized();
-    } else if (error.status === 403) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('Access forbidden:', error.message);
-      }
-    } else if (error.status >= 500) {
-      console.error('Server error:', error.message);
-    } else if (error.status === 404 && error.message === 'Not Found') {
-      // Don't log 404s for health checks and other expected endpoints
-      if (process.env.NODE_ENV === 'development') {
-        console.log('404 error (possibly expected):', error.message);
-      }
-    }
-  }
-
-  handleUnauthorized() {
-    // Clear stored auth data
-    storage.remove(CONFIG.STORAGE_KEYS.SESSION_TOKEN);
-    storage.remove(CONFIG.STORAGE_KEYS.USER_DATA);
-    
-    // Redirect to login (but avoid infinite redirects)
-    const currentPath = window.location.pathname;
-    if (currentPath !== '/login' && currentPath !== '/register') {
-      window.location.href = '/login?redirect=' + encodeURIComponent(currentPath);
-    }
-  }
-
-  createAbortController(timeoutMs = this.timeout) {
-    const controller = new AbortController();
-    
-    // Set timeout
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, timeoutMs);
-
-    // Clear timeout when request completes
-    const originalAbort = controller.abort.bind(controller);
-    controller.abort = () => {
-      clearTimeout(timeoutId);
-      originalAbort();
+export class ApiClient {
+  constructor(baseURL, timeout = 30000) {
+    this.baseURL = baseURL;
+    this.timeout = timeout;
+    this.defaultHeaders = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
     };
-
-    return controller;
+    this.interceptors = {
+      request: [],
+      response: [],
+      error: []
+    };
+    this.retryAttempts = CONFIG.API.RETRY_ATTEMPTS || 3;
+    this.retryDelay = 1000;
+    
+    // Environment-based logging
+    this.isProduction = import.meta.env.PROD;
+    this.enableDebugLogging = import.meta.env.VITE_DEBUG_API === 'true';
   }
 
-  async delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  // Smarter logging that respects environment
+  log(level, message, data = null) {
+    // Skip debug logs in production unless explicitly enabled
+    if (this.isProduction && level === 'debug' && !this.enableDebugLogging) {
+      return;
+    }
+
+    const prefix = '[API]';
+    const logData = data ? [message, data] : [message];
+
+    switch (level) {
+      case 'error':
+        console.error(prefix, ...logData);
+        break;
+      case 'warn':
+        console.warn(prefix, ...logData);
+        break;
+      case 'info':
+        console.info(prefix, ...logData);
+        break;
+      case 'debug':
+      default:
+        console.log(prefix, ...logData);
+        break;
+    }
   }
 
+  // Get auth token from storage
+  getAuthToken() {
+    try {
+      return localStorage.getItem(CONFIG.STORAGE_KEYS.SESSION_TOKEN);
+    } catch (error) {
+      this.log('error', 'Failed to get auth token from storage:', error);
+      return null;
+    }
+  }
+
+  // Set auth token in storage
+  setAuthToken(token) {
+    try {
+      if (token) {
+        localStorage.setItem(CONFIG.STORAGE_KEYS.SESSION_TOKEN, token);
+      } else {
+        localStorage.removeItem(CONFIG.STORAGE_KEYS.SESSION_TOKEN);
+      }
+    } catch (error) {
+      this.log('error', 'Failed to set auth token in storage:', error);
+    }
+  }
+
+  // Enhanced error handling
+  async handleErrorResponse(response, originalError = null) {
+    let errorData = null;
+    let errorMessage = `HTTP ${response.status}`;
+
+    try {
+      const text = await response.text();
+      if (text) {
+        try {
+          errorData = JSON.parse(text);
+        } catch (parseError) {
+          errorMessage = text;
+        }
+      }
+    } catch (readError) {
+      this.log('error', 'Failed to read error response:', readError);
+    }
+
+    // Create descriptive error message
+    if (errorData) {
+      if (typeof errorData === 'string') {
+        errorMessage = errorData;
+      } else if (errorData.detail) {
+        if (Array.isArray(errorData.detail)) {
+          errorMessage = errorData.detail.map(err => {
+            const field = err.loc ? err.loc.join('.') : 'field';
+            return `${field}: ${err.msg || err.message || 'Invalid value'}`;
+          }).join(', ');
+        } else if (typeof errorData.detail === 'string') {
+          errorMessage = errorData.detail;
+        } else {
+          errorMessage = JSON.stringify(errorData.detail);
+        }
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
+      } else if (errorData.error) {
+        errorMessage = errorData.error;
+      }
+    }
+
+    const apiError = new ApiError(
+      errorMessage,
+      response.status,
+      response.statusText,
+      errorData,
+      originalError
+    );
+
+    // Only log errors that aren't auth-related (to reduce noise)
+    if (!apiError.isAuthError()) {
+      this.log('error', 'API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        message: errorMessage,
+        url: response.url
+      });
+    }
+
+    throw apiError;
+  }
+
+  // Apply error interceptors
+  async applyErrorInterceptors(error) {
+    try {
+      for (const interceptor of this.interceptors.error) {
+        await interceptor(error);
+      }
+    } catch (interceptorError) {
+      this.log('error', 'Error interceptor error:', interceptorError);
+    }
+  }
+
+  // Apply request interceptors
+  async applyRequestInterceptors(config) {
+    let modifiedConfig = { ...config };
+    
+    try {
+      for (const interceptor of this.interceptors.request) {
+        modifiedConfig = await interceptor(modifiedConfig) || modifiedConfig;
+      }
+    } catch (interceptorError) {
+      this.log('error', 'Request interceptor error:', interceptorError);
+    }
+    
+    return modifiedConfig;
+  }
+
+  // Apply response interceptors
+  async applyResponseInterceptors(response, data) {
+    let modifiedData = data;
+    
+    try {
+      for (const interceptor of this.interceptors.response) {
+        modifiedData = await interceptor(response, modifiedData) || modifiedData;
+      }
+    } catch (interceptorError) {
+      this.log('error', 'Response interceptor error:', interceptorError);
+    }
+    
+    return modifiedData;
+  }
+
+  // Retry logic with exponential backoff
   async retryRequest(requestFn, attempt = 1) {
     try {
       return await requestFn();
     } catch (error) {
-      // Don't retry for certain error types
-      if (
-        error.status === 401 || 
-        error.status === 403 || 
-        error.status === 404 ||
-        error.status === 422 ||
-        error.name === 'TimeoutError' ||
-        error.message === 'Auth verification timeout' ||
-        attempt >= this.retryAttempts
-      ) {
+      // Don't retry on auth errors or client errors
+      if (error instanceof ApiError && (error.status < 500 || error.status === 401 || error.status === 403)) {
         throw error;
       }
-
-      // Don't retry auth-related requests to avoid infinite loops
-      if (error.message?.includes('Authentication') || error.message?.includes('Token')) {
+      
+      if (attempt >= this.retryAttempts) {
+        this.log('error', `Request failed after ${this.retryAttempts} attempts:`, error.message);
         throw error;
       }
-
-      // Exponential backoff
-      const delayTime = this.retryDelay * Math.pow(2, attempt - 1);
-      await this.delay(delayTime);
-
-      console.log(`Retrying request (attempt ${attempt + 1}/${this.retryAttempts})`);
+      
+      // Calculate delay with exponential backoff
+      const delay = this.retryDelay * Math.pow(2, attempt - 1) + Math.random() * 1000;
+      this.log('warn', `Request failed (attempt ${attempt}/${this.retryAttempts}), retrying in ${delay}ms:`, error.message);
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
       return this.retryRequest(requestFn, attempt + 1);
     }
   }
 
-  async request(endpoint, options = {}) {
-    const url = getApiUrl(endpoint);
-    
-    // Apply request interceptors
-    const config = await this.applyRequestInterceptors({
-      method: 'GET',
-      headers: {
-        ...CONFIG.HEADERS,
-        ...options.headers
-      },
-      ...options
-    });
-
+  // Main request method with reduced logging
+  async request(method, url, data = null, options = {}) {
     const requestFn = async () => {
-      const controller = this.createAbortController(options.timeout || this.timeout);
-      
-      try {
-        const response = await fetch(url, {
-          ...config,
-          signal: controller.signal
-        });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-        // Handle different status codes
+      try {
+        // Build full URL
+        const fullUrl = url.startsWith('http') ? url : `${this.baseURL}${url}`;
+        
+        // Prepare headers
+        const headers = { ...this.defaultHeaders, ...options.headers };
+        
+        // Get auth token
+        const token = this.getAuthToken();
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+
+        // Prepare request config
+        let config = {
+          method: method.toUpperCase(),
+          headers,
+          signal: options.signal || controller.signal,
+          ...options
+        };
+
+        // Apply request interceptors
+        config = await this.applyRequestInterceptors(config);
+
+        // Add body for non-GET requests
+        if (data !== null && method.toUpperCase() !== 'GET') {
+          if (data instanceof FormData) {
+            // Remove Content-Type for FormData (browser will set it)
+            delete headers['Content-Type'];
+            config.body = data;
+          } else {
+            config.body = JSON.stringify(data);
+          }
+        }
+
+        // Only log requests in debug mode or non-production
+        if (this.enableDebugLogging || !this.isProduction) {
+          this.log('debug', `Making ${method.toUpperCase()} request to:`, fullUrl);
+        }
+
+        // Make request
+        const response = await fetch(fullUrl, config);
+        
+        clearTimeout(timeoutId);
+
+        // Handle error responses
         if (!response.ok) {
           await this.handleErrorResponse(response);
         }
 
-        // Handle empty responses (204 No Content)
-        if (response.status === 204) {
-          return null;
+        // Parse successful response
+        const contentType = response.headers.get('content-type');
+        let result;
+
+        if (contentType && contentType.includes('application/json')) {
+          result = await response.json();
+        } else if (contentType && contentType.includes('text/')) {
+          result = await response.text();
+        } else {
+          result = await response.blob();
         }
 
-        const data = await response.json();
-        
         // Apply response interceptors
-        return await this.applyResponseInterceptors(data);
+        result = await this.applyResponseInterceptors(response, result);
+
+        // Only log successful requests in debug mode
+        if (this.enableDebugLogging || !this.isProduction) {
+          this.log('debug', `${method.toUpperCase()} request successful:`, fullUrl);
+        }
+
+        return result;
 
       } catch (error) {
-        // Handle different error types
+        clearTimeout(timeoutId);
+
+        // Handle different types of errors
         if (error.name === 'AbortError') {
-          throw new TimeoutError('Request timed out');
-        }
-        
-        if (error.name === 'TypeError' && error.message.includes('fetch')) {
-          throw new NetworkError('Unable to connect to server');
+          const timeoutError = new ApiError(
+            'Request timed out. Please check your connection and try again.',
+            408,
+            'Request Timeout'
+          );
+          await this.applyErrorInterceptors(timeoutError);
+          throw timeoutError;
         }
 
-        throw error;
-      } finally {
-        controller.abort(); // Clear timeout
+        if (error instanceof ApiError) {
+          await this.applyErrorInterceptors(error);
+          throw error;
+        }
+
+        // Network or other errors
+        const networkError = new ApiError(
+          'Network error. Please check your internet connection and try again.',
+          0,
+          'Network Error',
+          null,
+          error
+        );
+        
+        await this.applyErrorInterceptors(networkError);
+        throw networkError;
       }
     };
 
-    try {
-      return await this.retryRequest(requestFn);
-    } catch (error) {
-      await this.applyErrorInterceptors(error);
-      throw error;
-    }
+    return this.retryRequest(requestFn);
   }
 
-  async handleErrorResponse(response) {
-    let errorData;
-    
-    try {
-      errorData = await response.json();
-    } catch {
-      // If we can't parse JSON, create a generic error
-      throw new ApiError(
-        `HTTP ${response.status}: ${response.statusText}`,
-        response.status,
-        'HTTP_ERROR'
-      );
-    }
+  // Standard HTTP methods
+  async get(url, options = {}) {
+    return this.request('GET', url, null, options);
+  }
 
-    // Handle structured error responses
-    if (errorData.error) {
-      throw new ApiError(
-        errorData.error.message || 'An error occurred',
-        response.status,
-        errorData.error.code || 'API_ERROR',
-        errorData.error.details || {}
-      );
-    }
+  async post(url, data, options = {}) {
+    return this.request('POST', url, data, options);
+  }
 
-    // Handle FastAPI validation errors
-    if (errorData.detail) {
-      if (Array.isArray(errorData.detail)) {
-        // Validation errors
-        const fieldErrors = {};
-        errorData.detail.forEach(error => {
-          const field = error.loc?.join('.') || 'unknown';
-          fieldErrors[field] = error.msg;
-        });
+  async put(url, data, options = {}) {
+    return this.request('PUT', url, data, options);
+  }
 
-        throw new ApiError(
-          'Validation failed',
-          response.status,
-          'VALIDATION_ERROR',
-          { fieldErrors }
-        );
+  async patch(url, data, options = {}) {
+    return this.request('PATCH', url, data, options);
+  }
+
+  async delete(url, options = {}) {
+    return this.request('DELETE', url, null, options);
+  }
+
+  // Helper method for form data requests
+  async postForm(url, formData, options = {}) {
+    return this.request('POST', url, formData, {
+      ...options,
+      headers: {
+        // Don't set Content-Type for FormData
+        ...options.headers
       }
-
-      // String detail
-      throw new ApiError(
-        errorData.detail,
-        response.status,
-        'API_ERROR'
-      );
-    }
-
-    // Generic error
-    throw new ApiError(
-      'An unexpected error occurred',
-      response.status,
-      'UNKNOWN_ERROR'
-    );
+    });
   }
 
-  // HTTP Methods
-  async get(endpoint, params = {}, options = {}) {
-    const queryString = new URLSearchParams(params).toString();
-    const url = queryString ? `${endpoint}?${queryString}` : endpoint;
+  // Helper method for file uploads
+  async uploadFile(url, file, additionalData = {}, options = {}) {
+    const formData = new FormData();
+    formData.append('file', file);
     
-    return this.request(url, {
-      method: 'GET',
-      ...options
+    // Add additional form data
+    Object.keys(additionalData).forEach(key => {
+      formData.append(key, additionalData[key]);
     });
+
+    return this.postForm(url, formData, options);
   }
 
-  async post(endpoint, data, options = {}) {
-    return this.request(endpoint, {
-      method: 'POST',
-      body: JSON.stringify(data),
-      ...options
-    });
-  }
-
-  async put(endpoint, data, options = {}) {
-    return this.request(endpoint, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-      ...options
-    });
-  }
-
-  async patch(endpoint, data, options = {}) {
-    return this.request(endpoint, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-      ...options
-    });
-  }
-
-  async delete(endpoint, options = {}) {
-    return this.request(endpoint, {
-      method: 'DELETE',
-      ...options
-    });
-  }
-
-  // Form data methods
-  async postForm(endpoint, formData, options = {}) {
-    const headers = { ...options.headers };
-    delete headers['Content-Type']; // Let browser set it for FormData
-    
-    return this.request(endpoint, {
-      method: 'POST',
-      body: formData,
-      headers,
-      ...options
-    });
-  }
-
-  // File upload with progress
-  async uploadFile(endpoint, file, options = {}) {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      const formData = new FormData();
-      formData.append('file', file);
-
-      // Add auth header
-      const token = storage.get(CONFIG.STORAGE_KEYS.SESSION_TOKEN);
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+  // Add interceptors
+  addRequestInterceptor(interceptor) {
+    this.interceptors.request.push(interceptor);
+    return () => {
+      const index = this.interceptors.request.indexOf(interceptor);
+      if (index > -1) {
+        this.interceptors.request.splice(index, 1);
       }
+    };
+  }
 
-      // Progress callback
-      if (options.onProgress) {
-        xhr.upload.addEventListener('progress', (event) => {
-          if (event.lengthComputable) {
-            const progress = (event.loaded / event.total) * 100;
-            options.onProgress(Math.round(progress));
-          }
-        });
+  addResponseInterceptor(interceptor) {
+    this.interceptors.response.push(interceptor);
+    return () => {
+      const index = this.interceptors.response.indexOf(interceptor);
+      if (index > -1) {
+        this.interceptors.response.splice(index, 1);
       }
-
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const response = JSON.parse(xhr.responseText);
-            resolve(response);
-          } catch (error) {
-            resolve(xhr.responseText);
-          }
-        } else {
-          try {
-            const errorData = JSON.parse(xhr.responseText);
-            reject(new ApiError(
-              errorData.error?.message || 'Upload failed',
-              xhr.status,
-              errorData.error?.code || 'UPLOAD_ERROR'
-            ));
-          } catch {
-            reject(new ApiError(
-              `Upload failed: ${xhr.statusText}`,
-              xhr.status,
-              'UPLOAD_ERROR'
-            ));
-          }
-        }
-      };
-
-      xhr.onerror = () => {
-        reject(new NetworkError('Upload failed due to network error'));
-      };
-
-      xhr.ontimeout = () => {
-        reject(new TimeoutError('Upload timed out'));
-      };
-
-      xhr.timeout = options.timeout || this.timeout;
-      xhr.open('POST', getApiUrl(endpoint));
-      xhr.send(formData);
-    });
+    };
   }
 
-  // Health check
-  async healthCheck() {
-    try {
-      const response = await this.get('/health', {}, { timeout: 5000 });
-      return { healthy: true, ...response };
-    } catch (error) {
-      return { 
-        healthy: false, 
-        error: error.message,
-        status: error.status 
-      };
-    }
+  addErrorInterceptor(interceptor) {
+    this.interceptors.error.push(interceptor);
+    return () => {
+      const index = this.interceptors.error.indexOf(interceptor);
+      if (index > -1) {
+        this.interceptors.error.splice(index, 1);
+      }
+    };
   }
 
-  // Connection test
+  // Clear all interceptors
+  clearInterceptors() {
+    this.interceptors = {
+      request: [],
+      response: [],
+      error: []
+    };
+  }
+
+  // Set timeout
+  setTimeout(timeout) {
+    this.timeout = timeout;
+  }
+
+  // Set retry attempts
+  setRetryAttempts(attempts) {
+    this.retryAttempts = attempts;
+  }
+
+  // Update base URL
+  setBaseURL(baseURL) {
+    this.baseURL = baseURL;
+  }
+
+  // Test connection to server
   async testConnection() {
     try {
-      await this.healthCheck();
+      await this.get('/api/v1/system/health', { 
+        signal: AbortController ? new AbortController().signal : undefined 
+      });
       return true;
-    } catch {
+    } catch (error) {
+      this.log('warn', 'Connection test failed:', error.message);
       return false;
     }
   }
+
+  // Update default headers
+  setDefaultHeaders(headers) {
+    this.defaultHeaders = { ...this.defaultHeaders, ...headers };
+  }
+
+  // Remove default header
+  removeDefaultHeader(key) {
+    delete this.defaultHeaders[key];
+  }
 }
 
-// Create and export singleton instance
-export const apiClient = new ApiClient();
+// Create and configure API client instance
+export const apiClient = new ApiClient(CONFIG.API.BASE_URL, CONFIG.API.TIMEOUT);
 
-// Export error classes for external use
-export { ApiError, NetworkError, TimeoutError };
+// Set retry attempts from config
+apiClient.setRetryAttempts(CONFIG.API.RETRY_ATTEMPTS || 3);
+
+// Add auth error interceptor (reduced logging)
+apiClient.addErrorInterceptor(async (error) => {
+  if (error.isAuthError() && error.status === 401) {
+    // Clear invalid token
+    localStorage.removeItem(CONFIG.STORAGE_KEYS.SESSION_TOKEN);
+    localStorage.removeItem(CONFIG.STORAGE_KEYS.USER_DATA);
+    
+    // Only redirect if not already on login page
+    if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/auth')) {
+      // Emit an event that your router can listen to
+      window.dispatchEvent(new CustomEvent('auth:tokenExpired', {
+        detail: { error, message: 'Your session has expired. Please log in again.' }
+      }));
+    }
+  }
+});
+
+// Only add debug interceptors in development
+if (!import.meta.env.PROD || import.meta.env.VITE_DEBUG_API === 'true') {
+  // Add request interceptor for logging
+  apiClient.addRequestInterceptor(async (config) => {
+    console.debug('[API] Request:', {
+      method: config.method,
+      url: config.url,
+      hasAuth: !!config.headers?.Authorization
+    });
+    return config;
+  });
+
+  // Add response interceptor for logging
+  apiClient.addResponseInterceptor(async (response, data) => {
+    console.debug('[API] Response:', {
+      status: response.status,
+      statusText: response.statusText,
+      url: response.url,
+      dataType: typeof data
+    });
+    return data;
+  });
+}
 
 export default apiClient;

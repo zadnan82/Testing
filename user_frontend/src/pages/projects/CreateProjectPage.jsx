@@ -119,6 +119,16 @@ const CreateProjectPage = ({ onBack }) => {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
+ 
+<Button
+  onClick={() => window.location.href = '/templates'} // or however you handle navigation
+  variant="outline" 
+  className="w-full mb-4"
+  size="lg"
+>
+  <Star className="h-5 w-5 mr-2" />
+  Browse Ready Templates
+</Button>
           <button
             onClick={handleBack}
             className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4 transition-colors"

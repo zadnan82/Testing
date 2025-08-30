@@ -11,7 +11,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from user_backend.app.db_setup import get_db
-from user_backend.app.api.v1.core.models import Token, User, UserType
+from user_backend.app.models import Token, User, UserType
 from user_backend.app.settings import settings
 from user_backend.app.core.exceptions import (
     AuthenticationError,

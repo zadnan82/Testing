@@ -3,7 +3,7 @@
 // =============================================================================
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MessageSquare, Wand2, Eye, Download, Globe, Send, Sparkles, Code, Check } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Wand2, Eye, Download, Globe, Send, Sparkles, Code, Check, AlertCircle } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import { sevdoService } from '../../services/sevdo.service';
